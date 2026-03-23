@@ -8,7 +8,7 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 
 class LoginRequest(BaseModel):
-    email: str
+    username: str
     password: str
 
 
@@ -23,8 +23,8 @@ def login(data: LoginRequest):
     cursor = conn.cursor(pymysql.cursors.DictCursor)
 
     cursor.execute(
-        "SELECT id, name, email, password FROM users WHERE email=%s",
-        (data.email,)
+        "SELECT id, name, email, password FROM users WHERE name=%s",
+        (data.username,)
     )
 
     user = cursor.fetchone()
@@ -32,7 +32,7 @@ def login(data: LoginRequest):
     conn.close()
 
     if not user:
-        raise HTTPException(status_code=401, detail="Invalid email")
+        raise HTTPException(status_code=401, detail="Invalid username")
 
     if data.password != user["password"]:
         raise HTTPException(status_code=401, detail="Invalid password")

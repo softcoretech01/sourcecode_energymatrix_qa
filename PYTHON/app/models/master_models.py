@@ -9,7 +9,7 @@ class CapacityMaster(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     capacity = Column(String(50))
-    status = Column(String(1)) # binary(1)
+    status = Column(SmallInteger, default=1) # 1 active, 0 inactive
     
     created_by = Column(Integer)
     created_at = Column(DateTime)
@@ -25,7 +25,7 @@ class EDCCircleMaster(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     edc_circle = Column(String(255))
-    status = Column(String(1)) # binary(1)
+    status = Column(SmallInteger, default=1) # 1 active, 0 inactive
     
     created_by = Column(Integer)
     created_at = Column(DateTime)
@@ -48,6 +48,7 @@ class EmailMaster(Base):
     email_to = Column(String(200))
     email_subject = Column(String(200))
     email_content = Column(Text)
+    status = Column(SmallInteger, default=1) # 1 active, 0 inactive
     
     created_by = Column(Integer)
     created_at = Column(DateTime)
@@ -64,6 +65,7 @@ class InvestorMaster(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     investor_name = Column(String(255))
     share_quantity = Column(DECIMAL(15,2))
+    status = Column(SmallInteger, default=1) # 1 active, 0 inactive
     
     created_by = Column(Integer)
     created_at = Column(DateTime)
@@ -83,6 +85,7 @@ class TransmissionLossMaster(Base):
     loss_percentage = Column(DECIMAL(5,2))
     valid_from = Column(Date)
     remarks = Column(String(500))
+    status = Column(SmallInteger, default=1) # 1 active, 0 inactive
     
     is_submitted = Column(SmallInteger)
     created_by = Column(Integer)
@@ -100,6 +103,7 @@ class ShareHoldingsMaster(Base):
     customer_id = Column(Integer)
     share_quantity = Column(Integer)
     share_percentage = Column(DECIMAL(5,2))
+    status = Column(SmallInteger, default=1) # 1 active, 0 inactive
     
     is_submitted = Column(SmallInteger)
     created_by = Column(Integer)
@@ -140,6 +144,7 @@ class ConsumptionChargersMaster(Base):
     charge_description = Column(Text)
     valid_upto = Column(Date)
     discount_charges = Column(DECIMAL(12, 2))
+    status = Column(SmallInteger, default=1) # 1 active, 0 inactive
 
     is_submitted = Column(SmallInteger)
     created_by = Column(Integer)

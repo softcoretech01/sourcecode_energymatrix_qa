@@ -93,6 +93,14 @@ def update_transmission(id: int, data: dict, user=Depends(get_current_user)):
             )
         )
 
+        # status is not available on old stored proc in this code path;
+        # do a direct update when provided from UI toggle.
+        if data.get("status") is not None:
+            cursor.execute(
+                "UPDATE transmission_loss_master SET status=%s WHERE id=%s",
+                (int(data.get("status")), id)
+            )
+
         cursor.callproc("sp_update_avg_transmission_loss")
 
         conn.commit()

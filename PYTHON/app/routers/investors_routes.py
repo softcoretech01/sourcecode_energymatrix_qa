@@ -12,12 +12,6 @@ def create_investor(data: dict, user=Depends(get_current_user)):
     conn = get_db()
     cursor = conn.cursor()
 
-    status = data.get("status", 1)
-    try:
-        status = int(status)
-    except (TypeError, ValueError):
-        status = 1
-
     cursor.execute(
         """
         INSERT INTO master_investors (
@@ -33,7 +27,7 @@ def create_investor(data: dict, user=Depends(get_current_user)):
             data.get("investor_name", ""),
             data.get("share_quantity", 0),
             user["id"],
-            status,
+            1,
         )
     )
 

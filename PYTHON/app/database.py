@@ -4,10 +4,10 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from urllib.parse import quote_plus
-
 load_dotenv()
 
 DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = int(os.getenv("DB_PORT", "3306"))
 DB_USER = os.getenv("DB_USER", "root")
 DB_PASSWORD = os.getenv("DB_PASSWORD", "")
 DB_NAME = os.getenv("DB_NAME", "masters")
@@ -24,15 +24,15 @@ db_password_escaped = quote_plus(DB_PASSWORD)
 
 # SQLAlchemy Engines & Session configuration
 engine_masters = create_engine(
-    f"mysql+pymysql://{DB_USER}:{db_password_escaped}@{DB_HOST}/{DB_NAME}",
+    f"mysql+pymysql://{DB_USER}:{db_password_escaped}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
     connect_args={"connect_timeout": CONNECT_TIMEOUT, "read_timeout": READ_TIMEOUT}
 )
 engine_windmill = create_engine(
-    f"mysql+pymysql://{DB_USER}:{db_password_escaped}@{DB_HOST}/{DB_NAME_WINDMILL}",
+    f"mysql+pymysql://{DB_USER}:{db_password_escaped}@{DB_HOST}:{DB_PORT}/{DB_NAME_WINDMILL}",
     connect_args={"connect_timeout": CONNECT_TIMEOUT, "read_timeout": READ_TIMEOUT}
 )
 engine_solar = create_engine(
-    f"mysql+pymysql://{DB_USER}:{db_password_escaped}@{DB_HOST}/{DB_NAME_SOLAR}",
+    f"mysql+pymysql://{DB_USER}:{db_password_escaped}@{DB_HOST}:{DB_PORT}/{DB_NAME_SOLAR}",
     connect_args={"connect_timeout": CONNECT_TIMEOUT, "read_timeout": READ_TIMEOUT}
 )
 
@@ -68,6 +68,7 @@ def get_connection(db_name=None):
         db_name = DB_NAME
     return pymysql.connect(
         host=DB_HOST,
+        port=DB_PORT,
         user=DB_USER,
         password=DB_PASSWORD,
         database=db_name,
@@ -83,6 +84,7 @@ def initialize_database():
     try:
         init_conn = pymysql.connect(
             host=DB_HOST, 
+            port=DB_PORT,
             user=DB_USER, 
             password=DB_PASSWORD, 
             autocommit=True,
@@ -99,9 +101,11 @@ def initialize_database():
     except Exception as e:
         print(f"Failed to ensure databases on startup: {e}")
 
+
+   
     # IMPORT all models here to register them with metadata
     from app.models import customer_masters, master_models, windmill_masters, windmill_models
-    
+
     # 1. Create all Tables based on defined models
     print("Creating SQLAlchemy tables for Masters...")
     BaseMasters.metadata.create_all(bind=engine_masters)

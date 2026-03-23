@@ -26,14 +26,13 @@ async def add_customer(data: CustomerCreate, user: dict = Depends(get_current_us
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute("CALL sp_add_customer(%s,%s,%s,%s,%s,%s,%s,%s,%s)", (
+    cursor.execute("CALL sp_add_customer(%s,%s,%s,%s,%s,%s,%s,%s)", (
         data.customer_name,
         data.city,
         data.phone_no,
         data.email,
         data.address,
         data.gst_number,
-        data.status,
         user["id"],
         data.is_submitted
     ))

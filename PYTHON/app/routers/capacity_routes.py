@@ -6,7 +6,6 @@ from pydantic import BaseModel
 
 class CapacityCreate(BaseModel):
     capacity: float
-    status: int
     is_submitted: int
 
 
@@ -28,7 +27,7 @@ def create_capacity(data: CapacityCreate, user=Depends(get_current_user)):
         "sp_create_capacity",
         (
             data.capacity,
-            data.status,
+            1,
             data.is_submitted,
             user["id"]
         )

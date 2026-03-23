@@ -29,7 +29,7 @@ def add_consumption(data: ConsumptionCreate, user=Depends(get_current_user)):
     cursor = connection.cursor()
 
     try:
-        cursor.callproc("sp_add_consumption", [
+        cursor.callproc("sp_create_consumption", [
             0,  # p_id (not used for insert)
             data.energy_type,
             data.charge_code,

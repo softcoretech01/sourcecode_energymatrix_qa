@@ -25,7 +25,7 @@ async def add_edc(data: EDCCircleCreate, user: dict = Depends(get_current_user))
 
     cursor.execute("CALL sp_add_edc_circle(%s,%s,%s,%s)", (
         data.edc_name,
-        data.status,
+        1,
         data.is_submitted,
         1
     ))

@@ -32,7 +32,7 @@ export default function ConsumptionChargesAdd() {
 const [chargeCode, setChargeCode] = React.useState("");
 const [chargeName, setChargeName] = React.useState("");
 const [description, setDescription] = React.useState("");
-const [discount, setDiscount] = React.useState("");
+const [discount, setDiscount] = React.useState("50");
 
     const getUomLabel = (val: string) => {
         if (val === "per_unit") return "unit";
@@ -57,7 +57,7 @@ const [discount, setDiscount] = React.useState("");
             type: type,
             charge_description: description || null,
             valid_upto: date ? format(date, "yyyy-MM-dd") : null,
-            discount_charges: discount ? Number(discount) : 0,
+            discount_charges: 50,
             is_submitted: isSubmitted, // 🔥 0 = Save, 1 = Post
         };
 
@@ -217,13 +217,10 @@ const [discount, setDiscount] = React.useState("");
 
                             <div className="space-y-1.5 flex flex-col">
                                 <label className="text-sm font-semibold text-slate-700">Discount Charges</label>
-                                <div className="flex gap-2">
-                                    <Input
-  placeholder="Enter Discount Charges"
-  type="Number"
-  value={discount}
-  onChange={(e) => setDiscount(e.target.value)}
-/>
+                                <div className="flex items-center gap-2">
+                                    <div className="flex items-center justify-center px-4 py-2 bg-slate-100 border border-slate-300 rounded h-9 min-w-[120px] text-sm font-medium text-slate-700">
+                                        50%
+                                    </div>
                                     <Button
                                         type="button"
                                         variant="outline"

@@ -42,7 +42,7 @@ console.error("Error loading capacity", error);
 const handleUpdate = async () => {
     try {
         const payload = {
-            capacity: parseFloat(capacity),
+            capacity: capacity,
             status: status,
             is_submitted: 0 // ✅ SAVE
         };
@@ -62,7 +62,7 @@ const handleUpdate = async () => {
 const handlePost = async () => {
     try {
         const payload = {
-            capacity: parseFloat(capacity),
+            capacity: capacity,
             status: status,
             is_submitted: 1
         };

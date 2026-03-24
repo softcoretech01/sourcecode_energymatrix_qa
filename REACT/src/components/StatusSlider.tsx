@@ -19,7 +19,7 @@ export function StatusSlider({ status, onToggle, disabled }: StatusSliderProps) 
       className={cn(
         "relative inline-flex h-4 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none",
         disabled ? "cursor-not-allowed opacity-70" : "",
-        isActive ? "bg-red-500 hover:bg-red-600" : "bg-emerald-500 hover:bg-emerald-600"
+        isActive ? "bg-emerald-500 hover:bg-emerald-600" : "bg-red-500 hover:bg-red-600"
       )}
     >
       <span

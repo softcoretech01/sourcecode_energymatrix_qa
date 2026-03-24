@@ -239,15 +239,20 @@ export default function WindmillEdit() {
                             {/* Status */}
                             <div className="space-y-1.5 flex flex-col justify-end pb-2">
                                 <Label className="text-sm font-semibold text-slate-700 mb-1">Status</Label>
-                                <div className="flex items-center space-x-2 h-9">
-                                    <Checkbox
-                                        id="not-running"
-                                        checked={notRunning}
-                                        onCheckedChange={(checked) => setNotRunning(checked as boolean)}
-                                        className="bg-white border-slate-300"
-                                    />
-                                    <Label htmlFor="not-running" className="text-sm font-medium cursor-pointer">Not Running</Label>
-                                </div>
+                                <RadioGroup
+                                    value={notRunning ? "not-running" : "running"}
+                                    onValueChange={(val) => setNotRunning(val === "not-running")}
+                                    className="flex items-center gap-4"
+                                >
+                                    <div className="flex items-center gap-2">
+                                        <RadioGroupItem value="running" id="running" />
+                                        <Label htmlFor="running" className="text-sm font-medium cursor-pointer text-slate-700">Running</Label>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <RadioGroupItem value="not-running" id="not-running" />
+                                        <Label htmlFor="not-running" className="text-sm font-medium cursor-pointer text-slate-700">Not Running</Label>
+                                    </div>
+                                </RadioGroup>
                             </div>
 
                             {/* Expected Resume Date */}

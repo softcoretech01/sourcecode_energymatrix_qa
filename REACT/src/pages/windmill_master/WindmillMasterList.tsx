@@ -114,7 +114,7 @@ export default function WindmillMasterList() {
     const fetchEdcCircles = async () => {
         const token = localStorage.getItem("access_token");
         try {
-            const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/edc-circle/`, {
+            const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/edc-circle/dropdown`, {
                 headers: {
                     "Content-Type": "application/json",
                     ...(token ? { Authorization: `Bearer ${token}` } : {}),

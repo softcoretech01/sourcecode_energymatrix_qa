@@ -20,6 +20,7 @@ export default function EmailMasterEdit() {
     email_cc: "",
     email_subject: "",
     email_content: "",
+    status: 1,
     is_submitted: 0
   });
 

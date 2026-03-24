@@ -32,7 +32,7 @@ const [uom, setUom] = useState("per_unit");
 const [type, setType] = useState("unit");
 const [description, setDescription] = useState("");
 const [validUpto, setValidUpto] = useState<Date>();
-const [discount, setDiscount] = useState("");
+const [discount, setDiscount] = useState("50");
 const [showFormula, setShowFormula] = useState(false);
    
     const getUomLabel = (val: string) => {
@@ -63,7 +63,7 @@ const fetchConsumption = async () => {
     setUom(data.uom);
     setType(data.type);
     setDescription(data.charge_description || "");
-    setDiscount(data.discount_charges?.toString() || "");
+    setDiscount("50");
 
     if (data.valid_upto) {
       setValidUpto(new Date(data.valid_upto));
@@ -85,7 +85,7 @@ const fetchConsumption = async () => {
       type: type,
       charge_description: description,
       valid_upto: validUpto ? format(validUpto, "yyyy-MM-dd") : null,
-      discount_charges: discount ? parseFloat(discount) : null,
+      discount_charges: 50,
       is_submitted: 0,
     };
 
@@ -109,7 +109,7 @@ const fetchConsumption = async () => {
       type: type,
       charge_description: description,
       valid_upto: validUpto ? format(validUpto, "yyyy-MM-dd") : null,
-      discount_charges: discount ? parseFloat(discount) : null,
+      discount_charges: 50,
       is_submitted: 1,
     };
 
@@ -254,8 +254,10 @@ const fetchConsumption = async () => {
                             </div>
                             <div className="space-y-1.5 flex flex-col">
                                 <label className="text-sm font-semibold text-slate-700">Discount Charges</label>
-                                <div className="flex gap-2">
-                                   <Input value={discount} type="Number" onChange={(e) => setDiscount(e.target.value)} />
+                                <div className="flex items-center gap-2">
+                                    <div className="flex items-center justify-center px-4 py-2 bg-slate-100 border border-slate-300 rounded h-9 min-w-[120px] text-sm font-medium text-slate-700">
+                                        50%
+                                    </div>
                                     <Button
                                         type="button"
                                         variant="outline"

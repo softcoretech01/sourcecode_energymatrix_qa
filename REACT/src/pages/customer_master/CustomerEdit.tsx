@@ -192,14 +192,14 @@ export default function CustomerEdit(): JSX.Element {
                 };
 
                 // Fetch EDC Circles
-                const edcRes = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/edc-circle/`, { headers });
+                const edcRes = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/edc-circle/dropdown`, { headers });
                 if (edcRes.ok) {
                     const edcData = await edcRes.json();
                     setEdcList(edcData || []);
                 }
 
                 // Fetch KVA/Capacities from transmission loss master
-                const kvaRes = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/transmission/list`, { headers });
+                const kvaRes = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/transmission/dropdown`, { headers });
                 if (kvaRes.ok) {
                     const kvaData = await kvaRes.json();
                     setKvaList(kvaData || []);

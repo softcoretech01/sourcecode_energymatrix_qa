@@ -87,7 +87,7 @@ export default function WindmillMasterAdd() {
 
         const loadEdcCircles = async () => {
             try {
-                const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/edc-circle/`, { headers });
+                const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/edc-circle/dropdown`, { headers });
                 if (!res.ok) throw new Error("Failed to load EDC circles");
                 const data = await res.json();
                 setEdcCircles(data);
@@ -98,7 +98,7 @@ export default function WindmillMasterAdd() {
 
         const loadKvaOptions = async () => {
             try {
-                const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/transmission/list`, { headers });
+                const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/transmission/dropdown`, { headers });
                 if (!res.ok) {
                     const data = await res.json().catch(() => null);
                     if (handleAuthError(res.status, data)) return;
@@ -116,7 +116,7 @@ export default function WindmillMasterAdd() {
 
         const loadCapacityOptions = async () => {
             try {
-                const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/capacity/list`, { headers });
+                const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/capacity/dropdown`, { headers });
                 if (!res.ok) {
                     const data = await res.json().catch(() => null);
                     if (handleAuthError(res.status, data)) return;

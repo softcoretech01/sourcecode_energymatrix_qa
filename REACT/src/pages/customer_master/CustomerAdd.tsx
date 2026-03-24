@@ -60,14 +60,14 @@ export default function CustomerAdd() {
                 };
 
                 // Fetch EDC Circles
-                const edcRes = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/edc-circle/`, { headers });
+                const edcRes = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/edc-circle/dropdown`, { headers });
                 if (edcRes.ok) {
                     const edcData = await edcRes.json();
                     setEdcList(edcData || []);
                 }
 
                 // Fetch KVA/Capacities from transmission loss master
-                const kvaRes = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/transmission/list`, { headers });
+                const kvaRes = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/transmission/dropdown`, { headers });
                 if (kvaRes.ok) {
                     const kvaData = await kvaRes.json();
                     setKvaList(kvaData || []);
@@ -788,7 +788,11 @@ export default function CustomerAdd() {
                                                         <tr key={item.id} className="hover:bg-slate-50">
                                                             <td className="px-4 py-3 text-slate-500 border-r border-slate-100">{index + 1}</td>
                                                             <td className="px-4 py-3 font-medium text-slate-900 border-r border-slate-100">{item.seNumber}</td>
-                                                            <td className="px-4 py-3 text-slate-600 border-r border-slate-100">{item.kva}</td>
+                                                            <td className="px-4 py-3 text-slate-600 border-r border-slate-100">
+                                                                {kvaList.find(k => String(k.id) === String(item.kva))?.kva ||
+                                                                 kvaList.find(k => String(k.id) === String(item.kva))?.capacity ||
+                                                                 item.kva}
+                                                            </td>
                                                             <td className="px-4 py-3 text-slate-600 border-r border-slate-100">
                                                                 {edcList.find(e => e.id === item.edcCircle)?.edc_name ||
                                                                  edcList.find(e => e.id === item.edcCircle)?.edc_circle ||

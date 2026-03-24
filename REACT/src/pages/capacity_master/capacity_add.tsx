@@ -23,7 +23,7 @@ const handleSave = async () => {
   try {
 
     const payload = {
-      capacity: parseFloat(capacity),
+      capacity: capacity,
       status: 1,
       is_submitted: 0
     };
@@ -43,7 +43,7 @@ const handlePost = async () => {
   try {
 
     const payload = {
-      capacity: parseFloat(capacity),
+      capacity: capacity,
       status: 1,
       is_submitted: 1
     };

@@ -17,6 +17,7 @@ const [formData, setFormData] = useState({
   email_cc: "",
   email_subject: "",
   email_content: "",
+  status: 1,
   is_submitted: 0
 });
 
@@ -40,6 +41,7 @@ const handleSave = async () => {
       ...formData,
       occurrences: Number(formData.occurrences),
       email_time: formData.email_time + ":00",
+      status: 1,
       is_submitted: 0
     });
 
@@ -56,6 +58,7 @@ const handlePost = async () => {
   try {
     await api.post("/email-master/", {
       ...formData,
+      status: 1,
       is_submitted: 1
     });
 

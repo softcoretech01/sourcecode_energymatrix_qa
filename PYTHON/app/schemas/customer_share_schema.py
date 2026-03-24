@@ -9,6 +9,7 @@ from datetime import datetime
 class CustomerShareCreate(BaseModel):
     customer_id: int
     share_quantity: int
+    share_percentage: Optional[float] = None
     status: Optional[int] = 1
     is_submitted: Optional[int] = 0
 
@@ -18,6 +19,7 @@ class CustomerShareCreate(BaseModel):
 # ===============================
 class CustomerShareUpdate(BaseModel):
     share_quantity: int
+    share_percentage: Optional[float] = None
     status: Optional[int] = 1
     is_submitted: Optional[int] = 0
 
@@ -29,6 +31,7 @@ class CustomerShareResponse(BaseModel):
     id: int
     customer_id: int
     share_quantity: int
+    share_percentage: Optional[float] = None
     status: int
     is_submitted: int
     created_by: Optional[int]

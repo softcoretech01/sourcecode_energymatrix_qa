@@ -84,7 +84,7 @@ class TransmissionLossMaster(Base):
     kva = Column(String(50))
     loss_percentage = Column(DECIMAL(5,2))
     valid_from = Column(Date)
-    remarks = Column(String(500))
+    remarks = Column(String(50))
     status = Column(SmallInteger, default=1) # 1 active, 0 inactive
     
     is_submitted = Column(SmallInteger)

@@ -27,6 +27,7 @@ class TotalSharesUpdate(BaseModel):
 # RESPONSE MODEL
 # ===============================
 class TotalSharesResponse(BaseModel):
+    id: Optional[int] = None
     total_company_shares: float
     total_investor_shares: float
     total_customer_shares: float

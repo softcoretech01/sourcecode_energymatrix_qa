@@ -14,6 +14,7 @@ class EmailMasterCreate(BaseModel):
     email_to: Optional[str] = None
     email_subject: Optional[str] = None
     email_content: Optional[str] = None
+    status: Optional[int] = 1
     is_submitted: Optional[int] = 0
 
 # ===============================
@@ -28,6 +29,7 @@ class EmailMasterUpdate(BaseModel):
     email_to: Optional[str] = None
     email_subject: Optional[str] = None
     email_content: Optional[str] = None
+    status: Optional[int] = None
     is_submitted: Optional[int] = 0
 
 # ===============================

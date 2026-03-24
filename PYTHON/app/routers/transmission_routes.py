@@ -14,19 +14,25 @@ def create_transmission(data: dict, user=Depends(get_current_user)):
     conn = get_db()
     cursor = conn.cursor()
 
-    cursor.callproc(
-        "sp_add_transmission_loss",
-        (
-            data["kva"],
-            data["loss_percentage"],
-             data["valid_from"], 
-            data["remarks"],
-            data["is_submitted"],
-            user["id"]
+    try:
+        cursor.callproc(
+            "sp_add_transmission_loss",
+            (
+                data["kva"],
+                data["loss_percentage"],
+                data["valid_from"], 
+                data["remarks"],
+                data["is_submitted"],
+                user["id"]
+            )
         )
-    )
 
-    conn.commit()
+        cursor.callproc("sp_update_avg_transmission_loss")
+
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
     return {"message": "Transmission created"}
 

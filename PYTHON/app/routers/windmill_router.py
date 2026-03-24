@@ -71,20 +71,6 @@ async def create_windmill(data: WindmillCreate, user: dict = Depends(get_current
         conn = get_connection()
         cursor = conn.cursor(pymysql.cursors.DictCursor)
 
-        # 🔹 fetch transmission loss from transmission_loss_master using kva_id
-        cursor.execute(
-            "SELECT loss_percentage FROM transmission_loss_master WHERE id=%s",
-            (data.kva_id,)
-        )
-        kva_row = cursor.fetchone()
-
-        if not kva_row:
-            raise HTTPException(status_code=400, detail="Invalid KVA ID")
-
-        transmission_loss = kva_row["loss_percentage"]
-
-        # NOTE: Stored procedures (sp_add_windmill) do not exist in this database.
-        # Use direct INSERT to master_windmill instead.
         # Support legacy payloads that still send `am_name` by treating it as `ae_name`.
         ae_name_value = data.ae_name or getattr(data, "am_name", None)
 
@@ -103,27 +89,14 @@ async def create_windmill(data: WindmillCreate, user: dict = Depends(get_current
         database_insurance_name = data.insurance_person_name or getattr(data, "insurance_company_name", None)
         database_insurance_phone = data.insurance_person_phone or getattr(data, "insurance_company_number", None)
 
-        cursor.execute(
-            """
-            INSERT INTO master_windmill (
-                type, windmill_number, windmill_name, status,
-                kva_id, transmission_loss, capacity_mw_id, edc_circle_id,
-                ae_name, ae_number, operator_name, operator_number, contact_number,
-                amc_type, amc_head, amc_head_contact, amc_from_date, amc_to_date,
-                insurance_policy_number, insurance_company_name, insurance_company_number,
-                insurance_from_date, insurance_to_date,
-                minimum_level_generation, units_expiring,
-                open_access_portal, portal_username, portal_password,
-                is_submitted, created_by, created_at
-            ) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
-            """,
+        cursor.callproc(
+            "sp_add_windmill",
             (
                 data.type or "Windmill",
                 data.windmill_number,
                 data.windmill_name,
                 data.status or "Active",
                 data.kva_id,
-                transmission_loss,
                 data.capacity_id,
                 data.edc_circle_id,
                 ae_name_value,
@@ -138,7 +111,7 @@ async def create_windmill(data: WindmillCreate, user: dict = Depends(get_current
                 data.amc_to_date,
                 data.insurance_policy_number,
                 database_insurance_name,
-                database_insurance_phone,
+                insurance_phone_value,
                 data.insurance_from_date,
                 data.insurance_to_date,
                 data.minimum_level_generation,
@@ -148,14 +121,14 @@ async def create_windmill(data: WindmillCreate, user: dict = Depends(get_current
                 database_portal_password,
                 data.is_submitted,
                 user["id"],
-            )
+            ),
         )
 
         conn.commit()
-        # get the id of the row we just inserted so the front end can upload
-        # documents immediately if needed.
+
         cursor.execute("SELECT LAST_INSERT_ID() AS id")
         new_id = cursor.fetchone().get("id")
+
         return {"message": "Windmill created successfully", "id": new_id}
 
     except Exception as e:
@@ -173,16 +146,9 @@ async def get_windmills(user: dict = Depends(get_current_user)):
         conn = get_connection()
         cursor = conn.cursor(pymysql.cursors.DictCursor)
 
-        # Include the EDC circle name and capacity value so the frontend can display Region and capacity properly.
-        # Filter by type = 'windmill' to show only windmill type records
-        cursor.execute(
-            "SELECT m.*, c.edc_circle AS edc_name, p.capacity AS windmill_capacity "
-            "FROM master_windmill m "
-            "LEFT JOIN master_edc_circle c ON m.edc_circle_id = c.id "
-            "LEFT JOIN master_capacity p ON m.capacity_mw_id = p.id "
-            "WHERE m.type = 'windmill'"
-        )
-        return cursor.fetchall()
+        cursor.callproc("sp_get_windmills")
+        result = cursor.fetchall()
+        return result
 
     finally:
         cursor.close()
@@ -198,13 +164,7 @@ async def get_windmill(windmill_id: int, user: dict = Depends(get_current_user))
         conn = get_connection()
         cursor = conn.cursor(pymysql.cursors.DictCursor)
 
-        cursor.execute(
-            "SELECT m.*, p.capacity AS windmill_capacity "
-            "FROM master_windmill m "
-            "LEFT JOIN master_capacity p ON m.capacity_mw_id = p.id "
-            "WHERE m.id=%s",
-            (windmill_id,)
-        )
+        cursor.callproc("sp_get_windmill_by_id", (windmill_id,))
         row = cursor.fetchone()
 
         if not row:
@@ -228,128 +188,32 @@ async def update_windmill(windmill_id: int, data: WindmillCreate, user: dict = D
 
         validate_windmill(cursor, windmill_id)
 
-        # Load existing row so that omitted optional fields (like AMC/insurance)
-        # are preserved instead of being overwritten with NULL on update.
-        cursor.execute("SELECT * FROM master_windmill WHERE id=%s", (windmill_id,))
-        existing = cursor.fetchone()
-        if not existing:
-            raise HTTPException(status_code=404, detail="Windmill not found")
-        cursor.execute(
-            "SELECT loss_percentage FROM transmission_loss_master WHERE id=%s",
-            (data.kva_id,)
-        )
-        kva_row = cursor.fetchone()
-
-        if not kva_row:
-            raise HTTPException(status_code=400, detail="Invalid KVA ID")
-
-        transmission_loss = kva_row["loss_percentage"]
-
         # Support legacy payloads that still send `am_name` by treating it as `ae_name`.
-        ae_name_value = data.ae_name or getattr(data, "am_name", None) or existing.get("ae_name")
+        ae_name_value = data.ae_name or getattr(data, "am_name", None)
 
-        # For optional AMC / insurance fields, keep the previous DB value when the
-        # request omits them (so partial updates don't clear data).
-        amc_type = data.amc_type if data.amc_type is not None else existing.get("amc_type")
-        amc_head = data.amc_head if data.amc_head is not None else existing.get("amc_head")
-        amc_head_contact = (
-            data.amc_head_contact
-            if data.amc_head_contact is not None
-            else existing.get("amc_head_contact")
-        )
-        amc_from_date = data.amc_from_date if data.amc_from_date is not None else existing.get("amc_from_date")
-        amc_to_date = data.amc_to_date if data.amc_to_date is not None else existing.get("amc_to_date")
-
-        insurance_policy_number = (
-            data.insurance_policy_number
-            if data.insurance_policy_number is not None
-            else existing.get("insurance_policy_number")
-        )
-        insurance_person_name = (
-            data.insurance_person_name
-            if data.insurance_person_name is not None
-            else existing.get("insurance_company_name")
-        )
-
-        # Backward compatibility: support old dropped field names from frontend
-        if not insurance_person_name:
-            insurance_person_name = (
-                data.insurance_company_name
-                if getattr(data, "insurance_company_name", None) is not None
-                else existing.get("insurance_company_name")
-            )
-
-        insurance_phone_raw = (
+        # Guard against empty strings for numeric DB fields (MySQL rejects "" for INT/BIGINT).
+        insurance_phone_value = (
             data.insurance_person_phone
-            if data.insurance_person_phone is not None
-            else existing.get("insurance_company_number")
-        )
-        if not insurance_phone_raw:
-            insurance_phone_raw = (
-                data.insurance_company_number
-                if getattr(data, "insurance_company_number", None) is not None
-                else existing.get("insurance_company_number")
-            )
-
-        insurance_phone_value = insurance_phone_raw if insurance_phone_raw not in ("", None) else None
-        insurance_from_date = (
-            data.insurance_from_date
-            if data.insurance_from_date is not None
-            else existing.get("insurance_from_date")
-        )
-        insurance_to_date = (
-            data.insurance_to_date
-            if data.insurance_to_date is not None
-            else existing.get("insurance_to_date")
+            if data.insurance_person_phone not in (None, "")
+            else None
         )
 
+        # Provide compatibility for both old and new payload property names.
         database_portal_url = data.portal_url or getattr(data, "open_access_portal", None)
         database_portal_username = data.username or getattr(data, "portal_username", None)
         database_portal_password = data.password or getattr(data, "portal_password", None)
 
-        cursor.execute(
-            """
-            UPDATE master_windmill SET
-                type=%s,
-                windmill_number=%s,
-                windmill_name=%s,
-                status=%s,
-                kva_id=%s,
-                transmission_loss=%s,
-                capacity_mw_id=%s,
-                edc_circle_id=%s,
-                ae_name=%s,
-                ae_number=%s,
-                operator_name=%s,
-                operator_number=%s,
-                contact_number=%s,
-                amc_type=%s,
-                amc_head=%s,
-                amc_head_contact=%s,
-                amc_from_date=%s,
-                amc_to_date=%s,
-                insurance_policy_number=%s,
-                insurance_company_name=%s,
-                insurance_company_number=%s,
-                insurance_from_date=%s,
-                insurance_to_date=%s,
-                minimum_level_generation=%s,
-                units_expiring=%s,
-                open_access_portal=%s,
-                portal_username=%s,
-                portal_password=%s,
-                is_submitted=%s,
-                modified_by=%s,
-                modified_at=NOW()
-            WHERE id=%s
-            """,
+        database_insurance_name = data.insurance_person_name or getattr(data, "insurance_company_name", None)
+
+        cursor.callproc(
+            "sp_update_windmill",
             (
+                windmill_id,
                 data.type or "Windmill",
                 data.windmill_number,
                 data.windmill_name,
                 data.status or "Active",
                 data.kva_id,
-                transmission_loss,
                 data.capacity_id,
                 data.edc_circle_id,
                 ae_name_value,
@@ -357,16 +221,16 @@ async def update_windmill(windmill_id: int, data: WindmillCreate, user: dict = D
                 data.operator_name,
                 data.operator_number,
                 data.contact_number,
-                amc_type,
-                amc_head,
-                amc_head_contact,
-                amc_from_date,
-                amc_to_date,
-                insurance_policy_number,
-                insurance_person_name,
+                data.amc_type,
+                data.amc_head,
+                data.amc_head_contact,
+                data.amc_from_date,
+                data.amc_to_date,
+                data.insurance_policy_number,
+                database_insurance_name,
                 insurance_phone_value,
-                insurance_from_date,
-                insurance_to_date,
+                data.insurance_from_date,
+                data.insurance_to_date,
                 data.minimum_level_generation,
                 data.units_expiring,
                 database_portal_url,
@@ -374,7 +238,6 @@ async def update_windmill(windmill_id: int, data: WindmillCreate, user: dict = D
                 database_portal_password,
                 data.is_submitted,
                 user["id"],
-                windmill_id,
             ),
         )
 
@@ -400,7 +263,7 @@ async def delete_windmill(windmill_id: int, user: dict = Depends(get_current_use
 
         validate_windmill(cursor, windmill_id)
 
-        cursor.execute("DELETE FROM master_windmill WHERE id=%s", (windmill_id,))
+        cursor.callproc("sp_delete_windmill", (windmill_id,))
         conn.commit()
 
         return {"message": "Windmill deleted successfully"}

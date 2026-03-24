@@ -18,7 +18,8 @@ class ConsumptionCreate(BaseModel):
     charge_description: Optional[str]
     valid_upto: Optional[date]
     discount_charges: Optional[float]
-    is_submitted: int   # 0 = Save, 1 = Post
+    status: Optional[int] = None  # 1 = Active, 0 = Inactive
+    is_submitted: Optional[int] = 0   # 0 = Save, 1 = Post
 
 
 router = APIRouter(prefix="/consumption", tags=["Consumption"])
@@ -85,29 +86,59 @@ def get_consumption(id: int, user=Depends(get_current_user)):
 @router.put("/update/{id}")
 def update_consumption(id: int, data: ConsumptionCreate, user=Depends(get_current_user)):
     connection = get_db()
-    cursor = connection.cursor()
+    cursor = connection.cursor(pymysql.cursors.DictCursor)
 
     try:
-        cursor.callproc("sp_update_consumption", [
-            id,
-            data.energy_type,
-            data.charge_code,
-            data.charge_name,
-            data.cost,
-            data.uom,
-            data.type,
-            data.charge_description,
-            data.valid_upto,
-            data.discount_charges,
-            data.is_submitted,
-            user["id"]
-        ])
+        # Preserve existing row values for partial updates (in particular STATUS)
+        cursor.execute("SELECT * FROM master_consumption_chargers WHERE id=%s", (id,))
+        existing = cursor.fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Consumption record not found")
+
+        status = data.status if data.status is not None else existing.get("status", 1)
+        is_submitted = data.is_submitted if data.is_submitted is not None else existing.get("is_submitted", 0)
+
+        cursor.execute(
+            """
+            UPDATE master_consumption_chargers SET
+                energy_type=%s,
+                charge_code=%s,
+                charge_name=%s,
+                cost=%s,
+                uom=%s,
+                type=%s,
+                charge_description=%s,
+                valid_upto=%s,
+                discount_charges=%s,
+                status=%s,
+                is_submitted=%s,
+                modified_by=%s,
+                modified_at=NOW()
+            WHERE id=%s
+            """,
+            (
+                data.energy_type,
+                data.charge_code,
+                data.charge_name,
+                data.cost,
+                data.uom,
+                data.type,
+                data.charge_description,
+                data.valid_upto,
+                data.discount_charges,
+                status,
+                is_submitted,
+                user["id"],
+                id,
+            )
+        )
 
         connection.commit()
 
         return {
             "message": "Consumption updated successfully",
-            "is_submitted": data.is_submitted
+            "is_submitted": is_submitted,
+            "status": status
         }
 
     except Exception as e:

@@ -110,26 +110,54 @@ async def get_email(email_id: int, user: dict = Depends(get_current_user)):
 async def update_email(email_id: int, data: EmailMasterUpdate, user: dict = Depends(get_current_user)):
 
     conn = get_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor(pymysql.cursors.DictCursor)
 
     # 🔧 Fix time format
     email_time = data.email_time
     if isinstance(email_time, str) and len(email_time) == 5:
         email_time = email_time + ":00"
 
-    cursor.execute("CALL sp_update_email(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", (
-        email_id,
-        data.email_id,
-        data.email_category,
-        email_time,
-        data.occurrences,
-        data.email_cc,
-        data.email_to,
-        data.email_subject,
-        data.email_content,
-        data.is_submitted,
-        1
-    ))
+    # Load existing email row so we preserve omitted fields like status/is_submitted.
+    cursor.execute("SELECT * FROM master_email WHERE id=%s", (email_id,))
+    existing = cursor.fetchone()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Email config not found")
+
+    status = data.status if data.status is not None else existing.get("status", 1)
+    is_submitted = data.is_submitted if data.is_submitted is not None else existing.get("is_submitted", 0)
+
+    cursor.execute(
+        """
+        UPDATE master_email SET
+            email_id=%s,
+            email_category=%s,
+            email_time=%s,
+            occurrences=%s,
+            email_cc=%s,
+            email_to=%s,
+            email_subject=%s,
+            email_content=%s,
+            status=%s,
+            is_submitted=%s,
+            modified_by=%s,
+            modified_at=NOW()
+        WHERE id=%s
+        """,
+        (
+            data.email_id,
+            data.email_category,
+            email_time,
+            data.occurrences,
+            data.email_cc,
+            data.email_to,
+            data.email_subject,
+            data.email_content,
+            status,
+            is_submitted,
+            user["id"],
+            email_id,
+        )
+    )
 
     conn.commit()
     cursor.close()

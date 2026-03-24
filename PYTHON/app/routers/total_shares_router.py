@@ -30,18 +30,57 @@ async def create_total(data: TotalSharesCreate, user: dict = Depends(get_current
     customer_shares = total_company - investor
 
     conn = get_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor(pymysql.cursors.DictCursor)
+
+    # Ensure only one configuration row is used (id=1), no new rows (id=2+) are created.
+    cursor.execute("SELECT id FROM configuration WHERE id = 1")
+    existing = cursor.fetchone()
+
+    if existing:
+        cursor.execute(
+            "CALL sp_update_total_share(%s,%s,%s,%s,%s,%s)",
+            (
+                1,
+                total_company,
+                investor,
+                customer_shares,
+                data.is_submitted,
+                user["id"]
+            )
+        )
+        conn.commit()
+        cursor.close()
+        conn.close()
+        return {
+            "message": "Total shares updated",
+            "id": 1,
+            "customer_shares": customer_shares
+        }
+
+    # No id=1 row exists; ensure table has no other rows before insert.
+    cursor.execute("DELETE FROM configuration WHERE id != 1")
+    conn.commit()
 
     cursor.execute(
-        "CALL sp_add_total_share(%s,%s,%s,%s,%s)",
+        "INSERT INTO configuration (id, total_company_shares, total_investor_shares, total_customer_shares, is_submitted, created_by, created_at) VALUES (1,%s,%s,%s,%s,%s,NOW())",
         (
             total_company,
             investor,
             customer_shares,
-            data.is_submitted,   # ✅ correct
+            data.is_submitted,
             user["id"]
         )
     )
+
+    conn.commit()
+    cursor.close()
+    conn.close()
+
+    return {
+        "message": "Total shares created",
+        "id": 1,
+        "customer_shares": customer_shares
+    }
 
     conn.commit()
     new_id = cursor.lastrowid
@@ -91,6 +130,9 @@ async def get_total_shares_by_id(id: int):
 
 @router.put("/{id}", response_model=TotalSharesMessage)
 async def update_total(id: int, data: TotalSharesUpdate, user: dict = Depends(get_current_user)):
+    # enforce id=1 for all updates to avoid any other record being modified
+    id = 1
+
     total_company = int(data.total_company_shares)
     investor = int(data.investor_shares)
 
@@ -107,7 +149,7 @@ async def update_total(id: int, data: TotalSharesUpdate, user: dict = Depends(ge
         total_company,
         investor,
         customer_shares,
-         data.is_submitted, 
+        data.is_submitted,
         user["id"]
     ))
 

@@ -24,7 +24,7 @@ class Customer(Base):
     city = Column(String(50))
     phone_no = Column(String(50))
     email = Column(String(150))
-    address = Column(String(50))
+    address = Column(String(100))
     gst_number = Column(String(50))
     status = Column(String(1)) # binary(1)
     
@@ -89,7 +89,7 @@ class CustomerService(Base):
     kva_id = Column(Integer)
     edc_circle_id = Column(Integer)
     status = Column(String(1)) # binary(1)
-    remarks = Column(Text)
+    remarks = Column(String(50))
     
     created_by = Column(Integer)
     created_at = Column(DateTime)

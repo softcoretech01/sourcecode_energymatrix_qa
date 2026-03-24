@@ -3,13 +3,13 @@ version: '3.8'
 services:
   db:
     image: mysql:8.0
-    container_name: energymatrix-db
+    container_name: energymatrix-db-uat
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: "Ener9y#8154"
       MYSQL_DATABASE: energy_matrices
     ports:
-      - "3308:3306"
+      - "3309:3306"
     volumes:
       - db-data:/var/lib/mysql
     networks:
@@ -23,7 +23,7 @@ services:
     build:
       context: ./PYTHON
       dockerfile: Dockerfile
-    container_name: energymatrix-backend
+    container_name: energymatrix-backend-uat
     ports:
       - "3002:3000"
     env_file:
@@ -41,7 +41,7 @@ services:
     build:
       context: ./REACT
       dockerfile: Dockerfile
-    container_name: energymatrix-frontend
+    container_name: energymatrix-frontend-uat
     ports:
       - "8002:80"
     restart: always

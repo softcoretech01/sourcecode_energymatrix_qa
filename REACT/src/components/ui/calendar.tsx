@@ -15,8 +15,10 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
       classNames={{
         months: "flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0",
         month: "space-y-4",
-        caption: "flex justify-center pt-1 relative items-center",
-        caption_label: "text-sm font-medium",
+        caption: "flex justify-center pt-1 relative items-center gap-1",
+        caption_label: "hidden",
+        caption_dropdowns: "flex justify-center gap-1 h-7 items-center",
+        dropdown: "rounded-md border border-slate-200 bg-white px-1 py-0.5 text-xs font-medium focus:outline-none hover:bg-slate-50 transition-colors cursor-pointer",
         nav: "space-x-1 flex items-center",
         nav_button: cn(
           buttonVariants({ variant: "outline" }),
@@ -44,7 +46,25 @@ function Calendar({ className, classNames, showOutsideDays = true, ...props }: C
       components={{
         IconLeft: ({ ..._props }) => <ChevronLeft className="h-4 w-4" />,
         IconRight: ({ ..._props }) => <ChevronRight className="h-4 w-4" />,
+        Dropdown: ({ value, onChange, children, ...props }) => {
+          return (
+            <select
+              {...props}
+              value={value}
+              onChange={onChange}
+              className={cn(
+                "rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs font-semibold focus:outline-none hover:bg-slate-50 transition-colors cursor-pointer",
+                props.className
+              )}
+            >
+              {children}
+            </select>
+          )
+        }
       }}
+      captionLayout="dropdown-buttons"
+      fromYear={1900}
+      toYear={new Date().getFullYear() + 20}
       {...props}
     />
   );

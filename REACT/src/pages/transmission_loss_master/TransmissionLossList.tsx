@@ -30,15 +30,15 @@ import { useEffect } from "react";
 // Mock Data
 export default function TransmissionLossList() {
     const navigate = useNavigate();
-    const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
-    const [selectedMonth, setSelectedMonth] = useState<string>((new Date().getMonth() + 1).toString());
-    const [searchKva, setSearchKva] = useState("");
+    const [selectedYear, setSelectedYear] = useState<string>("all");
+    const [selectedMonth, setSelectedMonth] = useState<string>("all");
+    const [searchKva, setSearchKva] = useState("all");
     const [searchKeyword, setSearchKeyword] = useState("");
 
-    const [appliedYear, setAppliedYear] = useState<string>(new Date().getFullYear().toString());
-    const [appliedMonth, setAppliedMonth] = useState<string>((new Date().getMonth() + 1).toString());
-    const [appliedKva, setAppliedKva] = useState("");
-    const [lossData, setLossData] = useState<any[]>([]); // <-- instead of const lossData = [...]
+    const [appliedYear, setAppliedYear] = useState<string>("all");
+    const [appliedMonth, setAppliedMonth] = useState<string>("all");
+    const [appliedKva, setAppliedKva] = useState("all");
+    const [lossData, setLossData] = useState<any[]>([]); 
     const [avgLoss, setAvgLoss] = useState(0);
     const location = useLocation();
 
@@ -124,13 +124,13 @@ const handleDelete = async (id: number) => {
     };
 
     const handleCancel = () => {
-        setSelectedYear(new Date().getFullYear().toString());
-        setSelectedMonth((new Date().getMonth() + 1).toString());
-        setSearchKva("");
+        setSelectedYear("all");
+        setSelectedMonth("all");
+        setSearchKva("all");
         setSearchKeyword("");
-        setAppliedYear(new Date().getFullYear().toString());
-        setAppliedMonth((new Date().getMonth() + 1).toString());
-        setAppliedKva("");
+        setAppliedYear("all");
+        setAppliedMonth("all");
+        setAppliedKva("all");
     };
 
 
@@ -180,7 +180,7 @@ const handleExportExcel = () => {
 
 
     const filteredData = lossData.filter(row => {
-  const matchesKva = row.kva?.toLowerCase().includes(appliedKva.toLowerCase());
+  const matchesKva = appliedKva === "all" || row.kva?.toLowerCase().includes(appliedKva.toLowerCase());
   const matchesGlobal =
     searchKeyword === "" ||
     Object.values(row).some(val => String(val).toLowerCase().includes(searchKeyword.toLowerCase()));
@@ -188,8 +188,8 @@ const handleExportExcel = () => {
   if (!row.valid_from) return false;
 
   const [year, month, day] = row.valid_from.split("-"); // format: yyyy-mm-dd
-  const matchesYear = year === appliedYear;
-  const matchesMonth = parseInt(month, 10).toString() === appliedMonth;
+  const matchesYear = appliedYear === "all" || year === appliedYear;
+  const matchesMonth = appliedMonth === "all" || parseInt(month, 10).toString() === appliedMonth;
 
   return matchesKva && matchesGlobal && matchesYear && matchesMonth;
 });
@@ -225,13 +225,13 @@ const handleExportExcel = () => {
                             <span className="text-sm font-semibold text-slate-600 mr-2">Search</span>
 
                             <div className="w-[200px]">
-                                <Select value={searchKva} onValueChange={(val) => setSearchKva(val === "all" ? "" : val)}>
+                                <Select value={searchKva} onValueChange={setSearchKva}>
                                     <SelectTrigger className="bg-white border-slate-200 h-9 text-sm">
                                         <SelectValue placeholder="Select KVA" />
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="all">All KVA</SelectItem>
-                                        {Array.from(new Set(lossData.map(item => item.kva))).map(kva => (
+                                        {Array.from(new Set(lossData.map(item => item.kva))).filter(Boolean).map(kva => (
                                             <SelectItem key={kva} value={kva}>{kva}</SelectItem>
                                         ))}
                                     </SelectContent>
@@ -244,6 +244,7 @@ const handleExportExcel = () => {
                                     <SelectValue placeholder="Select Year" />
                                 </SelectTrigger>
                                 <SelectContent>
+                                    <SelectItem value="all">All Years</SelectItem>
                                     {years.map((year) => (
                                         <SelectItem key={year} value={year.toString()}>
                                             {year}
@@ -258,6 +259,7 @@ const handleExportExcel = () => {
                                     <SelectValue placeholder="Select Month" />
                                 </SelectTrigger>
                                 <SelectContent>
+                                    <SelectItem value="all">All Months</SelectItem>
                                     {months.map((month) => (
                                         <SelectItem key={month.value} value={month.value}>
                                             {month.label}

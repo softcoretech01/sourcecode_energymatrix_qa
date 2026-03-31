@@ -394,17 +394,17 @@ const handleExportExcel = () => {
                                                 <TableCell className="py-2 text-center">
                                                     <div className="flex justify-center gap-2">
                                                         <Button
-  variant="ghost"
-  size="icon"
-  disabled={row.status === "Posted"}
-  className={cn(
-    "h-6 w-6",
-    row.status === "Posted"
-      ? "text-gray-400 cursor-not-allowed"
-      : "text-primary hover:text-primary hover:bg-primary/10"
-  )}
-  onClick={() => navigate(`/windmill/edit/${row.id}`)}
->
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            disabled={row.is_submitted === 1 || row.is_submitted === true}
+                                                            className={cn(
+                                                                "h-6 w-6",
+                                                                (row.is_submitted === 1 || row.is_submitted === true)
+                                                                    ? "text-gray-400 cursor-not-allowed"
+                                                                    : "text-primary hover:text-primary hover:bg-primary/10"
+                                                            )}
+                                                            onClick={() => navigate(`/windmill/edit/${row.id}`)}
+                                                        >
   <Edit className="h-4 w-4" />
 </Button>
                                                     </div>

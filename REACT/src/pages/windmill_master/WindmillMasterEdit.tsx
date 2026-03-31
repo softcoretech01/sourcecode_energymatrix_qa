@@ -31,7 +31,7 @@ export default function WindmillMasterEdit() {
     const [type, setType] = useState("windmill");
     const [transactionLoss, setTransactionLoss] = useState("4.50");
     const [activeTab, setActiveTab] = useState("windmill_details");
-    const [edcCircle, setEdcCircle] = useState("South Circle");
+    const [edcCircle, setEdcCircle] = useState("");
     const [isPosted, setIsPosted] = useState(false);
 
     // Windmill form state
@@ -113,8 +113,8 @@ export default function WindmillMasterEdit() {
 
         const loadEdcCircles = async () => {
             try {
-                const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/transmission/dropdown`, { headers });
-                if (!res.ok) throw new Error("Failed to load kva options");
+                const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/edc-circle/dropdown`, { headers });
+                if (!res.ok) throw new Error("Failed to load EDC circles");
                 const data = await res.json();
                 setEdcCircles(data);
             } catch (err) {

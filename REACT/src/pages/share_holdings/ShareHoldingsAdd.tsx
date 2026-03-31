@@ -404,13 +404,13 @@ export default function ShareHoldingsAdd() {
                         <div className="flex flex-col md:flex-row gap-4 items-end">
                             <div className="space-y-1.5 flex-1">
                                 <label className="text-sm font-semibold text-slate-700">Customer Name</label>
-                                <Select value={currentCustomer} onValueChange={setCurrentCustomer}>
+                                <Select value={currentCustomer} onValueChange={setCurrentCustomer} onOpenChange={(open) => open && fetchCustomers()}>
                                     <SelectTrigger className="w-full bg-white border-slate-300 h-9 text-xs">
                                         <SelectValue placeholder="Select Customer" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {customers.map((cust) => (
-                                            <SelectItem key={cust.id} value={cust.id}>
+                                        {customers.map((cust: any) => (
+                                            <SelectItem key={cust.id} value={cust.id?.toString() || ""}>
                                                 {cust.customer_name}
                                             </SelectItem>
                                         ))}

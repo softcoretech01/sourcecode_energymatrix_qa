@@ -25,16 +25,16 @@ export default function ShareHoldingsEdit() {
         ? ((Number(currentQuantity || 0) / totalCustomerShares) * 100).toFixed(2)
         : "0.00";
 
-    useEffect(() => {
-        const fetchCustomers = async () => {
-            try {
-                const res = await api.get("/customer-shares/customers");
-                setCustomers(res.data);
-            } catch (error) {
-                console.error("Customer fetch error", error);
-            }
-        };
+    const fetchCustomers = async () => {
+        try {
+            const res = await api.get("/customer-shares/customers");
+            setCustomers(res.data);
+        } catch (error) {
+            console.error("Customer fetch error", error);
+        }
+    };
 
+    useEffect(() => {
         const fetchTotalCustomerShares = async () => {
             try {
                 const res = await api.get("/total-shares");
@@ -143,7 +143,7 @@ export default function ShareHoldingsEdit() {
                         <div className="flex flex-col md:flex-row gap-4 items-end">
                             <div className="space-y-1.5 flex-1">
                                 <label className="text-sm font-semibold text-slate-700">Customer Name</label>
-                                <Select value={currentCustomer} onValueChange={setCurrentCustomer}>
+                                <Select value={currentCustomer} onValueChange={setCurrentCustomer} onOpenChange={(open) => open && fetchCustomers()}>
                                     <SelectTrigger className="w-full bg-white border-slate-300 h-9 text-xs">
                                         <SelectValue placeholder="Select Customer" />
                                     </SelectTrigger>

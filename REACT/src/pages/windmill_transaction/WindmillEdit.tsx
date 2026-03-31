@@ -88,7 +88,8 @@ export default function WindmillEdit() {
                 expected_resume_date: resumeDate ? resumeDate.toISOString().split("T")[0] : null,
                 remarks,
                 status: notRunning ? "Not Running" : "Running",
-                modified_by: "admin" // replace with actual user
+                modified_by: "admin", // replace with actual user
+                is_submitted: 0
             };
 
             const res = await api.put(`/daily-generation/update/${id}`, payload);
@@ -117,7 +118,8 @@ export default function WindmillEdit() {
                 expected_resume_date: resumeDate ? resumeDate.toISOString().split("T")[0] : null,
                 remarks,
                 status: notRunning ? "Not Running" : "Running",
-                modified_by: "admin"
+                modified_by: "admin",
+                is_submitted: 1
             };
 
             await api.put(`/daily-generation/update/${id}`, payload); // use update route

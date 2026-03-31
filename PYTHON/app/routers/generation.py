@@ -26,6 +26,7 @@ class DailyGenerationCreate(BaseModel):
     remarks: Optional[str] = None
     status: str
     created_by: str
+    is_submitted: Optional[int] = 0
 
 class DailyGenerationResponse(BaseModel):
     id: int
@@ -53,6 +54,7 @@ class DailyGenerationUpdate(BaseModel):
     remarks: Optional[str] = None
     status: str
     modified_by: str
+    is_submitted: Optional[int] = 0
 
 
       
@@ -109,9 +111,14 @@ def save_daily_generation(
             text("CALL sp_update_windmill_daily_transaction_status(:id, :status)"),
             {"id": row["id"], "status": payload.status}
         )
+        db.execute(
+            text("UPDATE windmill_daily_transaction SET is_submitted = :is_submitted WHERE id = :id"),
+            {"id": row["id"], "is_submitted": payload.is_submitted}
+        )
         db.commit()
         row = dict(row)
         row["status"] = payload.status
+        row["is_submitted"] = payload.is_submitted
 
     return row
 
@@ -144,9 +151,14 @@ def post_daily_generation(
             text("CALL sp_update_windmill_daily_transaction_status(:id, :status)"),
             {"id": row["id"], "status": payload.status}
         )
+        db.execute(
+            text("UPDATE windmill_daily_transaction SET is_submitted = :is_submitted WHERE id = :id"),
+            {"id": row["id"], "is_submitted": payload.is_submitted}
+        )
         db.commit()
         row = dict(row)
         row["status"] = payload.status
+        row["is_submitted"] = payload.is_submitted
 
     return row
 
@@ -180,17 +192,34 @@ def update_daily_generation(
     )
 
     row = result.mappings().first()
+    
+    # For UPDATE, we always have the 'id' from the path
+    db.execute(
+        text("CALL sp_update_windmill_daily_transaction_status(:id, :status)"),
+        {"id": id, "status": payload.status}
+    )
+    db.execute(
+        text("UPDATE windmill_daily_transaction SET is_submitted = :is_submitted WHERE id = :id"),
+        {"id": id, "is_submitted": payload.is_submitted}
+    )
+    db.commit()
+    
     if row:
-        # Ensure status matches running/not running toggle (stored procedure may override)
-        db.execute(
-            text("CALL sp_update_windmill_daily_transaction_status(:id, :status)"),
-            {"id": id, "status": payload.status}
-        )
-        db.commit()
         row = dict(row)
         row["status"] = payload.status
+        row["is_submitted"] = payload.is_submitted
+        return row
 
-    return row
+    # Fallback if proc returns no row
+    return {
+        "id": id,
+        "status": payload.status,
+        "is_submitted": payload.is_submitted,
+        "windmill_number": payload.windmill_number,
+        "region": payload.region,
+        "modified_by": payload.modified_by,
+        "created_at": datetime.now() # Approximate
+    }
 
 
 

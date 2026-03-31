@@ -74,6 +74,7 @@ const handleSave = async () => {
       remarks: remarks,
       status: notRunning ? "Not Running" : "Running",
       created_by: "admin",
+      is_submitted: 0,
     };
 
     await api.post("/daily-generation/save", payload);
@@ -106,6 +107,7 @@ const handlePost = async () => {
       remarks: remarks,
       status: notRunning ? "Not Running" : "Running",
       created_by: "admin",
+      is_submitted: 1,
     };
 
     await api.post("/daily-generation/post", payload);

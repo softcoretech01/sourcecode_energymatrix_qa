@@ -385,24 +385,6 @@ async def update_customer_contact(
     conn.close()
 
     return {"message": "Contact updated successfully"}
-
-
-    cursor.callproc("sp_update_customer_contact", (
-        customer_id,
-        contact_id,
-        data.get("contact_person_name"),
-        data.get("phone_number"),
-        data.get("is_submitted", 0),
-        user["id"]
-    ))
-
-    conn.commit()
-    cursor.close()
-    conn.close()
-
-    return {"message": "Contact updated successfully"}
-
-
 # =====================================================
 # 🔵 FILE UPLOAD API (UPDATED WITH 5 DOCS)
 # =====================================================

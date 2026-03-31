@@ -49,7 +49,23 @@ export default function CustomerList() {
             });
             if (res.ok) {
                 const data = await res.json();
-                setCustomerData(Array.isArray(data) ? data : []);
+                // Group by ID to avoid duplicates due to multiple service numbers
+                const grouped = Array.isArray(data) ? Object.values(data.reduce((acc: any, current: any) => {
+                    const id = current.id;
+                    if (!acc[id]) {
+                        acc[id] = { 
+                            ...current, 
+                            se_numbers: current.se_number ? [String(current.se_number)] : [] 
+                        };
+                    } else if (current.se_number) {
+                        const se = String(current.se_number);
+                        if (!acc[id].se_numbers.includes(se)) {
+                            acc[id].se_numbers.push(se);
+                        }
+                    }
+                    return acc;
+                }, {})) : [];
+                setCustomerData(grouped);
                 setErrorMsg(null);
             } else if (res.status === 401) {
                 // not authenticated, redirect to login
@@ -78,7 +94,7 @@ export default function CustomerList() {
         new Set(
             customerData
                 .filter(item => !searchName || item.customer_name === searchName)
-                .map(item => item?.se_number)
+                .flatMap(item => item.se_numbers || [])
                 .filter(Boolean)
         )
     );
@@ -171,9 +187,9 @@ export default function CustomerList() {
         const matchesName = String(row.customer_name || "")
             .toLowerCase()
             .includes(appliedName.toLowerCase());
-        const matchesSeNumber = row.se_number
-            ? String(row.se_number).toLowerCase().includes(appliedSeNumber.toLowerCase())
-            : true;
+        const matchesSeNumber = !appliedSeNumber || (row.se_numbers || []).some((se: string) => 
+            se.toLowerCase().includes(appliedSeNumber.toLowerCase())
+        );
         const matchesGlobal = searchKeyword === "" ||
             Object.values(row).some(val => String(val).toLowerCase().includes(searchKeyword.toLowerCase()));
 
@@ -291,7 +307,7 @@ export default function CustomerList() {
                                                 <TableCell className="py-2 text-slate-600 text-sm">{row.city}</TableCell>
                                                 <TableCell className="py-2 text-slate-600 text-sm">{row.phone_no}</TableCell>
                                                 <TableCell className="py-2 text-slate-600 text-sm">{row.email}</TableCell>
-                                                <TableCell className="py-2 text-slate-600 text-sm">{row.se_number || ""}</TableCell>
+                                                <TableCell className="py-2 text-slate-600 text-sm">{(row.se_numbers || []).join(", ")}</TableCell>
                                                 <TableCell className="py-2">
                                                     {/** use is_submitted flag ONLY for S/P indicator, NOT status */}
                                                     <Badge
@@ -316,11 +332,11 @@ export default function CustomerList() {
                                                             size="icon" 
                                                             className={cn(
                                                                 "h-6 w-6 text-primary hover:bg-primary/10",
-                                                                (row.is_submitted === 1 || row.status === "Posted" || row.status === 1) && "opacity-50 cursor-not-allowed"
+                                                                row.is_submitted === 1 && "opacity-50 cursor-not-allowed"
                                                             )} 
-                                                            disabled={row.is_submitted === 1 || row.status === "Posted" || row.status === 1}
+                                                            disabled={row.is_submitted === 1}
                                                             onClick={() => { console.log('Edit clicked:', row); navigate(`/master/customers/edit/${row.id}`); }}
-                                                            title={(row.is_submitted === 1 || row.status === "Posted" || row.status === 1) ? "Posted records cannot be edited" : "Edit Customer"}
+                                                            title={row.is_submitted === 1 ? "Posted records cannot be edited" : "Edit Customer"}
                                                         >
                                                             <Edit className="h-4 w-4" />
                                                         </Button>

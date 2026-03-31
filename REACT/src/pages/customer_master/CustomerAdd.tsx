@@ -32,6 +32,7 @@ export default function CustomerAdd() {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState("customer");
     const [showPostConfirm, setShowPostConfirm] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
 
     // basic customer info
     const [customerName, setCustomerName] = useState("");
@@ -167,28 +168,34 @@ export default function CustomerAdd() {
     // save customer to backend
     // Save only the active tab
     const handleSave = async () => {
-        let success = false;
-        if (activeTab === "customer") {
-            success = await saveCustomer();
-        } else if (activeTab === "se_number") {
-            success = await saveServiceNumber();
-        } else if (activeTab === "contact_details") {
-            success = await saveContactDetails();
-        } else if (activeTab === "uploads") {
-            success = await saveUploads();
-        } else if (activeTab === "agreed_units") {
-            success = await saveAgreedUnits();
-        } else {
-            toast.info("Nothing to save on this tab.");
-            return;
-        }
-
-        if (success) {
-            const tabSequence = ["customer", "se_number", "contact_details", "uploads", "agreed_units"];
-            const currentIndex = tabSequence.indexOf(activeTab);
-            if (currentIndex !== -1 && currentIndex < tabSequence.length - 1) {
-                setActiveTab(tabSequence[currentIndex + 1]);
+        if (isSaving) return;
+        setIsSaving(true);
+        try {
+            let success = false;
+            if (activeTab === "customer") {
+                success = await saveCustomer();
+            } else if (activeTab === "se_number") {
+                success = await saveServiceNumber();
+            } else if (activeTab === "contact_details") {
+                success = await saveContactDetails();
+            } else if (activeTab === "uploads") {
+                success = await saveUploads();
+            } else if (activeTab === "agreed_units") {
+                success = await saveAgreedUnits();
+            } else {
+                toast.info("Nothing to save on this tab.");
+                return;
             }
+
+            if (success) {
+                const tabSequence = ["customer", "se_number", "contact_details", "uploads", "agreed_units"];
+                const currentIndex = tabSequence.indexOf(activeTab);
+                if (currentIndex !== -1 && currentIndex < tabSequence.length - 1) {
+                    setActiveTab(tabSequence[currentIndex + 1]);
+                }
+            }
+        } finally {
+            setIsSaving(false);
         }
     };
 
@@ -217,8 +224,13 @@ export default function CustomerAdd() {
             payload.email = email;
         }
         try {
-            const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/customers`, {
-                method: "POST",
+            const endpoint = createdCustomerId 
+                ? `${import.meta.env.VITE_BACKEND_URL}/api/customers/${createdCustomerId}`
+                : `${import.meta.env.VITE_BACKEND_URL}/api/customers`;
+            const method = createdCustomerId ? "PUT" : "POST";
+
+            const res = await fetch(endpoint, {
+                method,
                 headers: {
                     "Content-Type": "application/json",
                     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -227,18 +239,15 @@ export default function CustomerAdd() {
             });
             const data = await res.json();
             console.log("CustomerAdd saveCustomer response:", data);
-            // Debug: Log ID assignment
-            if (res.ok && data.id) {
-                console.log('Setting createdCustomerId to', data.id);
-            }
+            
             if (res.ok) {
-                if (data.id) {
+                if (!createdCustomerId && data.id) {
                     setCreatedCustomerId(data.id.toString());
                 }
-                toast.success("Customer created successfully!");
+                toast.success(createdCustomerId ? "Customer updated successfully!" : "Customer created successfully!");
                 return true;
             } else {
-                let errorMsg = "Failed to save customer";
+                let errorMsg = createdCustomerId ? "Failed to update customer" : "Failed to save customer";
                 if (Array.isArray(data.detail)) {
                     errorMsg = data.detail.map(d => `${d.loc ? d.loc.join('.') : ''} ${d.msg}`).join(', ');
                 } else if (data.detail) {
@@ -514,13 +523,15 @@ export default function CustomerAdd() {
                             size="sm"
                             className="bg-red-600 hover:bg-red-700 text-white h-8 px-4 rounded-md transition-all shadow-sm"
                             onClick={handleSave}
+                            disabled={isSaving}
                         >
-                            Save
+                            {isSaving ? "Saving..." : "Save"}
                         </Button>
                         <Button
                             size="sm"
                             className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 px-4 rounded-md transition-all shadow-sm"
                             onClick={() => setShowPostConfirm(true)}
+                            disabled={isSaving}
                         >
                             Post
                         </Button>

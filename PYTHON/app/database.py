@@ -10,9 +10,9 @@ load_dotenv()
 
 # Database Configuration from .env
 DB_HOST = os.getenv("DB_HOST", "187.127.131.38")
-DB_PORT = int(os.getenv("DB_PORT", "3312"))
+DB_PORT = int(os.getenv("DB_PORT", "3306"))
 DB_USER = os.getenv("DB_USER", "root")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "Ener9y_Demo#2026")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "Ener9y#8154")
 DB_NAME = os.getenv("DB_NAME", "masters")
 DB_NAME_SOLAR = os.getenv("DB_NAME_SOLAR", "solar")
 DB_NAME_WINDMILL = os.getenv("DB_NAME_WINDMILL", "windmill")

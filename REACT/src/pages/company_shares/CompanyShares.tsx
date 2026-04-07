@@ -19,11 +19,13 @@ export default function CompanyShares() {
 
     const fetchTotalShares = async () => {
         try {
-            const res = await api.get("/total-shares");
+            console.log("Fetching company shares...");
+            const res = await api.get("/total-shares/");
+            console.log("Company shares data:", res.data);
             if (Array.isArray(res.data) && res.data.length > 0) {
                 const first = res.data[0];
-                setTotalShares(String(first.total_company_shares ?? ""));
-                setInvestorShares(String(first.total_investor_shares ?? ""));
+                setTotalShares(String(first.total_company_shares ?? "0"));
+                setInvestorShares(String(first.total_investor_shares ?? "0"));
                 setTotalId(first.id ?? 1);
             }
         } catch (error) {

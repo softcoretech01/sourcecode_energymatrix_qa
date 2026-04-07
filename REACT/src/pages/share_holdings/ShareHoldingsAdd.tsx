@@ -345,9 +345,6 @@ export default function ShareHoldingsAdd() {
                             <h2 className="text-sm font-semibold text-slate-800">Add Shareholder</h2>
                             <div className="flex items-center gap-4">
                                 <span className="text-sm font-semibold text-slate-700">
-                                    Total No of Customer Shares: <span className="text-indigo-600">{totalCustomerShares}</span>
-                                </span>
-                                <span className="text-sm font-semibold text-slate-700">
                                     Remaining Customer Share: <span className="text-[#cb4154]">{remainingCustomerShare}</span>
                                 </span>
                                 {remainingCustomerShare === 0 && Number(totalCustomerShares) > 0 && (

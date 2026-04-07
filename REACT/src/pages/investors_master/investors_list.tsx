@@ -146,7 +146,7 @@ export default function InvestorsList() {
                         <h1 className="text-xl font-bold text-slate-800">Master Investors - List</h1>
                         {balance <= 0 && (
                             <div className="text-[11px] font-bold text-red-500 bg-red-50 px-3 py-1 border border-red-100 rounded-md animate-pulse">
-                                Please update Investors shares in "Company Shares" page to include new investors
+
                             </div>
                         )}
                     </div>

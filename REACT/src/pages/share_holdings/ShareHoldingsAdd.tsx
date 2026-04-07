@@ -22,7 +22,8 @@ export default function ShareHoldingsAdd() {
     const [totalId, setTotalId] = useState<number | null>(null);
     const [savingTotal, setSavingTotal] = useState(false);
 
-    const remainingCustomerShare = Number(totalCustomerShares) - allocatedShares - Number(currentQuantity || 0);
+    const rawRemaining = Number(totalCustomerShares) - allocatedShares - Number(currentQuantity || 0);
+    const remainingCustomerShare = rawRemaining < 0 ? 0 : rawRemaining;
 
     const calculatedPercentage = Number(totalCustomerShares) > 0
         ? ((Number(currentQuantity || 0) / Number(totalCustomerShares)) * 100).toFixed(2)
@@ -185,7 +186,7 @@ export default function ShareHoldingsAdd() {
             return;
         }
 
-        if (remainingCustomerShare < 0) {
+        if (rawRemaining < 0) {
             toast({
                 variant: "destructive",
                 title: "Share quantity exceeds remaining",
@@ -261,7 +262,7 @@ export default function ShareHoldingsAdd() {
             return;
         }
 
-        if (remainingCustomerShare < 0) {
+        if (rawRemaining < 0) {
             toast({
                 variant: "destructive",
                 title: "Share quantity exceeds remaining",
@@ -342,7 +343,10 @@ export default function ShareHoldingsAdd() {
                     <div>
                         <div className="flex items-center gap-4 mb-4">
                             <h2 className="text-sm font-semibold text-slate-800">Add Shareholder</h2>
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-4">
+                                <span className="text-sm font-semibold text-slate-700">
+                                    Total No of Customer Shares: <span className="text-indigo-600">{totalCustomerShares}</span>
+                                </span>
                                 <span className="text-sm font-semibold text-slate-700">
                                     Remaining Customer Share: <span className="text-[#cb4154]">{remainingCustomerShare}</span>
                                 </span>

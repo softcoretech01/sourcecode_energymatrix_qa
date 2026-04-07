@@ -38,6 +38,9 @@ export default function ShareHoldingsList() {
     const [customers, setCustomers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [totalCustomerShares, setTotalCustomerShares] = useState<number>(0);
+    const allocatedShares = masterData.reduce((sum: number, item: any) => sum + Number(item.share_quantity || 0), 0);
+    const remainingShares = Math.max(0, totalCustomerShares - allocatedShares);
 
     useEffect(() => {
         const initializeData = async () => {
@@ -46,7 +49,8 @@ export default function ShareHoldingsList() {
                 setError(null);
                 await Promise.all([
                     fetchCustomerShares(),
-                    fetchCustomers()
+                    fetchCustomers(),
+                    fetchTotalCustomerShares()
                 ]);
             } catch (err) {
                 setError("Failed to load data. Please try again.");
@@ -109,6 +113,24 @@ export default function ShareHoldingsList() {
             console.error("Error fetching customers", error);
             setCustomers([]);
             throw error;
+        }
+    };
+
+    const fetchTotalCustomerShares = async () => {
+        try {
+            const [totalRes, investorRes] = await Promise.all([
+                api.get("/total-shares"),
+                api.get("/investors/list")
+            ]);
+
+            const totalSharesData = totalRes.data?.[0]?.total_company_shares || 0;
+            const investorSharesData = Array.isArray(investorRes.data)
+                ? investorRes.data.reduce((sum: number, inv: any) => sum + Number(inv.share_quantity || 0), 0)
+                : 0;
+
+            setTotalCustomerShares(totalSharesData - investorSharesData);
+        } catch (error) {
+            console.error("Error fetching total customer shares", error);
         }
     };
 
@@ -209,8 +231,23 @@ const handleExportExcel = () => {
 
                     {/* List Table Section */}
                     <div className="space-y-2">
-                        <div className="flex justify-between items-center bg-primary/5 p-2 rounded-t-lg border-b border-primary/10 h-10">
-                            <h2 className="text-sm font-semibold text-primary pl-2">Share Holdings Data</h2>
+                        <div className="flex justify-between items-center bg-primary/5 p-2 rounded-t-lg border-b border-primary/10 h-auto min-h-[40px] flex-wrap gap-y-2">
+                            <div className="flex items-center gap-6">
+                                <h2 className="text-sm font-semibold text-primary pl-2 uppercase tracking-wide">Share Holdings Data</h2>
+                                <div className="flex items-center gap-4 border-l border-primary/20 pl-4 py-0.5">
+                                    <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                                        Total: <span className="text-primary font-bold">{totalCustomerShares}</span>
+                                    </div>
+                                    <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                                        Allocated: <span className="text-emerald-600 font-bold">{allocatedShares}</span>
+                                    </div>
+                                    <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                                        Remaining: <span className={cn("font-bold", remainingShares === 0 ? "text-red-600" : "text-amber-600")}>
+                                            {remainingShares}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
 
                             <div className="flex items-center gap-4">
                                 <div className="flex gap-3 items-center">

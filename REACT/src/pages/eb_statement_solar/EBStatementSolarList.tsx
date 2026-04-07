@@ -335,7 +335,7 @@ export default function EBStatementSolarList() {
                                     {rows.map((row) => (
                                         <TableRow key={row.id} className="hover:bg-slate-50">
                                             <TableCell className="py-2 text-sm font-medium w-1/6 pl-6">
-                                                {row.created_at ? format(new Date(row.created_at), "yyyy") : "-"}
+                                                {row.submitted_time ? format(new Date(row.submitted_time), "yyyy") : "-"}
                                             </TableCell>
                                             <TableCell className="py-2 text-sm w-1/6">{row.month || "-"}</TableCell>
                                             <TableCell className="py-2 text-sm w-1/6">{row.solar_number || row.solar_id || "-"}</TableCell>
@@ -346,8 +346,8 @@ export default function EBStatementSolarList() {
 
                                                     const openPdfViewer = async () => {
                                                         if (!pdfPath) {
-                                                            alert("PDF file not available for this record.");
-                                                            return;
+                                                              alert("PDF file not available for this record.");
+                                                              return;
                                                         }
 
                                                         // store context for PDF page
@@ -389,9 +389,9 @@ export default function EBStatementSolarList() {
                                                 })()}
                                             </TableCell>
                                             <TableCell className="py-2 text-sm w-1/6">
-                                                {row.created_at ? format(new Date(row.created_at), "dd MMM yyyy") + " : " + format(new Date(row.created_at), "hh:mm a") : "-"}
+                                                {row.submitted_time ? format(new Date(row.submitted_time), "dd MMM yyyy") + " : " + format(new Date(row.submitted_time), "hh:mm a") : "-"}
                                             </TableCell>
-                                            <TableCell className="py-2 text-sm w-1/6">{row.created_by || "-"}</TableCell>
+                                            <TableCell className="py-2 text-sm w-1/6">{row.submitted_by || "-"}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>

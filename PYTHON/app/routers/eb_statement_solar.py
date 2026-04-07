@@ -161,11 +161,30 @@ async def upload_eb_statement_solar(
         cursor.close()
         conn.close()
 
-    # Parse PDF data for immediate response (so frontend has month/year/etc)
+    # Parse and validate PDF data
     try:
         parsed_data = extract_eb_statement_data(file_path, solar_num, year, month)
+        if isinstance(parsed_data, dict) and parsed_data.get("error"):
+            raise Exception(parsed_data["error"])
     except Exception as pe:
-        parsed_data = {"error": str(pe)}
+        # cleanup physical file
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except:
+                pass
+        # cleanup DB record
+        if header_id:
+            try:
+                conn = get_connection(db_name="solar")
+                cur = conn.cursor()
+                cur.execute("DELETE FROM solar.eb_statement_solar WHERE id=%s", (header_id,))
+                conn.commit()
+                cur.close()
+                conn.close()
+            except:
+                pass
+        raise HTTPException(status_code=400, detail=str(pe))
 
     return {
         "message": "EB Statement (solar) uploaded and header created", 
@@ -342,7 +361,13 @@ def search_eb_solar(
         count_row = cursor.fetchone()
         total = int(count_row[0]) if count_row and len(count_row) > 0 else 0
 
-        query_sql = f"SELECT DISTINCT id, solar_id, month, year, pdf_file_path, is_submitted, created_at, created_by FROM eb_statement_solar{where_clause} ORDER BY created_at DESC LIMIT %s OFFSET %s"
+        query_sql = (
+            f"SELECT DISTINCT es.id, es.solar_id, es.month, es.year, es.pdf_file_path, es.is_submitted, "
+            f"COALESCE(es.modified_at, es.created_at) as submitted_time, u.name as submitted_by "
+            f"FROM eb_statement_solar es "
+            f"LEFT JOIN masters.users u ON es.created_by = u.id "
+            f"{where_clause} ORDER BY submitted_time DESC LIMIT %s OFFSET %s"
+        )
         cursor.execute(query_sql, tuple(params + [limit, offset]))
         rows = cursor.fetchall()
         columns = [desc[0] for desc in cursor.description]
@@ -370,25 +395,24 @@ def search_eb_solar(
             item["month"] = _normalize_month_value(item.get("month"))
             
             # Handle datetime and numeric fields to avoid Pydantic validation errors (str expected)
-            if "created_at" in item and item["created_at"]:
-                created_dt = item["created_at"]
-                if hasattr(created_dt, "strftime"):
-                    item["created_at"] = created_dt.strftime("%Y-%m-%d %H:%M:%S")
+            if "submitted_time" in item and item["submitted_time"]:
+                s_dt = item["submitted_time"]
+                if hasattr(s_dt, "strftime"):
+                    item["submitted_time"] = s_dt.strftime("%Y-%m-%d %H:%M:%S")
                 else:
-                    item["created_at"] = str(created_dt)
+                    item["submitted_time"] = str(s_dt)
             
-            if "created_by" in item and item["created_by"] is not None:
-                item["created_by"] = str(item["created_by"])
+            if "submitted_by" in item and item["submitted_by"] is not None:
+                item["submitted_by"] = str(item["submitted_by"])
 
             if "year" not in item or item.get("year") is None:
-                created_at = item.get("created_at")
-                if created_at is not None:
+                s_time = item.get("submitted_time")
+                if s_time is not None:
                     try:
-                        # If we already converted it to string above, handle that or use the original date
-                        if isinstance(created_at, str):
-                            item["year"] = int(created_at.split("-")[0])
+                        if isinstance(s_time, str):
+                            item["year"] = int(s_time.split("-")[0])
                         else:
-                            item["year"] = int(created_at.year)
+                            item["year"] = int(s_time.year)
                     except Exception:
                         item["year"] = None
         
@@ -448,9 +472,11 @@ def get_all_eb_solar(
         total = int(count_row[0]) if count_row and len(count_row) > 0 else 0
 
         cursor.execute(
-            "SELECT DISTINCT id, solar_id, month, year, pdf_file_path, is_submitted, created_at, created_by "
-            "FROM eb_statement_solar "
-            "ORDER BY created_at DESC LIMIT %s OFFSET %s",
+            "SELECT DISTINCT es.id, es.solar_id, es.month, es.year, es.pdf_file_path, es.is_submitted, "
+            "COALESCE(es.modified_at, es.created_at) as submitted_time, u.name as submitted_by "
+            "FROM eb_statement_solar es "
+            "LEFT JOIN masters.users u ON es.created_by = u.id "
+            "ORDER BY submitted_time DESC LIMIT %s OFFSET %s",
             (limit, offset),
         )
         rows = cursor.fetchall()
@@ -481,24 +507,24 @@ def get_all_eb_solar(
             item["month"] = _normalize_month_value(item.get("month"))
             
             # Handle datetime and numeric fields to avoid Pydantic validation errors (str expected)
-            if "created_at" in item and item["created_at"]:
-                created_dt = item["created_at"]
-                if hasattr(created_dt, "strftime"):
-                    item["created_at"] = created_dt.strftime("%Y-%m-%d %H:%M:%S")
+            if "submitted_time" in item and item["submitted_time"]:
+                s_dt = item["submitted_time"]
+                if hasattr(s_dt, "strftime"):
+                    item["submitted_time"] = s_dt.strftime("%Y-%m-%d %H:%M:%S")
                 else:
-                    item["created_at"] = str(created_dt)
+                    item["submitted_time"] = str(s_dt)
             
-            if "created_by" in item and item["created_by"] is not None:
-                item["created_by"] = str(item["created_by"])
+            if "submitted_by" in item and item["submitted_by"] is not None:
+                item["submitted_by"] = str(item["submitted_by"])
 
             if "year" not in item or item.get("year") is None:
-                created_at = item.get("created_at")
-                if created_at is not None:
+                s_time = item.get("submitted_time")
+                if s_time is not None:
                     try:
-                        if isinstance(created_at, str):
-                            item["year"] = int(created_at.split("-")[0])
+                        if isinstance(s_time, str):
+                            item["year"] = int(s_time.split("-")[0])
                         else:
-                            item["year"] = int(created_at.year)
+                            item["year"] = int(s_time.year)
                     except Exception:
                         item["year"] = None
 
@@ -655,81 +681,66 @@ async def read_eb_statement_solar_pdf(
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    # insert a record in the database so the "new" upload is stored
+    # GET expected_windmill_no from master_windmill by id or number
+    expected_wm = ""
+    conn = get_connection(db_name="solar")
+    cursor = conn.cursor()
+    try:
+        if solar_id:
+            # Determine if solar_id is numeric id or actual windmill number
+            if str(solar_id).isdigit():
+                cursor.execute("SELECT windmill_number FROM masters.master_windmill WHERE id=%s", (int(solar_id),))
+            else:
+                cursor.execute("SELECT windmill_number FROM masters.master_windmill WHERE windmill_number=%s", (solar_id,))
+            row = cursor.fetchone()
+            expected_wm = row[0] if row else ""
+    finally:
+        cursor.close()
+        conn.close()
+
+    # Parse and validate PDF data BEFORE saving to DB
+    try:
+        parsed_data = extract_eb_statement_data(file_path, expected_wm, year, month)
+    except Exception as parse_err:
+        # cleanup physical file
+        if os.path.exists(file_path):
+            try:
+                os.remove(file_path)
+            except:
+                pass
+        raise HTTPException(status_code=400, detail=f"Invalid solar EB PDF: {str(parse_err)}")
+
+    # Use extracted month/year if validation passed
+    # They match 'month' and 'year' from UI anyway because extract_eb_statement_data validates them
+    final_month = parsed_data.get("month", month)
+    final_year = parsed_data.get("year", year)
+
+    # insert a record in the database
     header_id = None
     try:
         conn = get_connection(db_name="solar")
         cursor = conn.cursor()
-        status = "Saved"
-
-        # GET expected_windmill_no from master_windmill by id or number
-        expected_wm = ""
-        if solar_id:
-            try:
-                # Determine if solar_id is numeric id or actual windmill number
-                if str(solar_id).isdigit():
-                    cursor.execute("SELECT windmill_number FROM masters.master_windmill WHERE id=%s", (int(solar_id),))
-                else:
-                    cursor.execute("SELECT windmill_number FROM masters.master_windmill WHERE windmill_number=%s", (solar_id,))
-                row = cursor.fetchone()
-                expected_wm = row[0] if row else ""
-            except Exception:
-                expected_wm = ""
-
-        # Use current year fallback if none provided
-        sel_year = year if year is not None else __import__('datetime').datetime.now().year
-
-        # Use direct INSERT instead of SP to ensure only the header is created.
-        # This prevents premature saving of detail values.
-        try:
-            cursor.execute(
-                "INSERT INTO solar.eb_statement_solar (solar_id, month, year, pdf_file_path, is_submitted, created_by) VALUES (%s, %s, %s, %s, %s, %s)",
-                (int(solar_id) if solar_id and str(solar_id).isdigit() else solar_id, month, sel_year, unique_name, 0, 1),
-            )
-            conn.commit()
-            header_id = cursor.lastrowid
-        except Exception as direct_exc:
-            print("Failed to insert solar.eb_statement_solar directly:", direct_exc)
-            raise HTTPException(status_code=500, detail="Failed to create header record")
-
+        
+        cursor.execute(
+            "INSERT INTO solar.eb_statement_solar (solar_id, month, year, pdf_file_path, is_submitted, created_by) VALUES (%s, %s, %s, %s, %s, %s)",
+            (int(solar_id) if solar_id and str(solar_id).isdigit() else solar_id, final_month, final_year, unique_name, 0, 1),
+        )
+        conn.commit()
+        header_id = cursor.lastrowid
     except Exception as exc:
         print("Failed to create EB solar record:", exc)
-        raise HTTPException(status_code=500, detail=str(exc))
-    finally:
-        try:
-            cursor.close()
-            conn.close()
-        except Exception:
-            pass
-
-    # parse using shared extractor from windmill EB statement module (validate service number vs solar number)
-    try:
-        parsed_data = extract_eb_statement_data(file_path, expected_wm, year, month)
-    except Exception as parse_err:
-        # clean up uploaded file if validation failed
-        try:
-            if os.path.exists(file_path):
+        # cleanup physical file if DB insert fails
+        if os.path.exists(file_path):
+            try:
                 os.remove(file_path)
-        except Exception as cleanup_err:
-            print("Failed to remove invalid PDF file after parse error:", cleanup_err)
+            except:
+                pass
+        raise HTTPException(status_code=500, detail=f"Database error: {str(exc)}")
+    finally:
+        if 'cursor' in locals() and cursor: cursor.close()
+        if 'conn' in locals() and conn: conn.close()
 
-        # Do not keep DB row in case parse and validation fails
-        try:
-            if header_id is not None:
-                conn = get_connection(db_name="solar")
-                cur = conn.cursor()
-                cur.execute("DELETE FROM solar.eb_statement_solar WHERE id=%s", (header_id,))
-                conn.commit()
-                cur.close()
-                conn.close()
-        except Exception as db_cleanup_err:
-            print("Failed to remove DB header after parse error:", db_cleanup_err)
-
-        raise HTTPException(status_code=400, detail=f"Invalid solar EB PDF: {str(parse_err)}")
-
-    warning_msg = None
-    if isinstance(parsed_data, dict):
-        warning_msg = parsed_data.get("warning")
+    warning_msg = parsed_data.get("warning")
 
     return {
         "message": "EB Statement (solar) uploaded and read",
@@ -1067,6 +1078,12 @@ async def save_eb_statement_solar_details(
                 """,
                 (eb_header_id, charge_id, float(charge.amount), user_id),
             )
+
+        # Mark as submitted and update modified time
+        cursor.execute(
+            "UPDATE solar.eb_statement_solar SET is_submitted=1, modified_at=NOW() WHERE id=%s",
+            (eb_header_id,)
+        )
 
         conn.commit()
         return {"status": "success", "message": "Solar EB statement details saved successfully"}

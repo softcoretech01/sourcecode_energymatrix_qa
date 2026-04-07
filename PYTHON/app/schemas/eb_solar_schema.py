@@ -49,20 +49,14 @@ from typing import Optional, Dict, Any, List, Union
 
 class EBSolarRecord(BaseModel):
     id: Optional[int] = None
-    reading_date: Optional[str] = None
     solar_id: Optional[Union[int, str]] = None
     solar_number: Optional[Union[int, str]] = None
     pdf_file_path: Optional[str] = None
-    exported_kwh: Optional[float] = None
-    consumed_kwh: Optional[float] = None
-    unit_value_export: Optional[float] = None
-    net_payable: Optional[float] = None
     is_submitted: Optional[int] = None
-    status: Optional[str] = None
     year: Optional[int] = None
     month: Optional[str] = None
-    created_at: Optional[str] = None
-    created_by: Optional[str] = None
+    submitted_time: Optional[str] = None
+    submitted_by: Optional[str] = None
 
 
 class EBSolarListResponse(BaseModel):

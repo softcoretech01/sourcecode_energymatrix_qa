@@ -4,14 +4,18 @@ from app.database import get_connection as get_db
 from app.utils.auth_utils import get_current_user
 from pydantic import BaseModel
 
+from decimal import Decimal
+from typing import Union, Optional
+
 class CapacityCreate(BaseModel):
-    capacity: float
+    capacity: Union[str, float, Decimal]
     is_submitted: int
 
 
 class CapacityUpdate(BaseModel):
-    capacity: float
+    capacity: Union[str, float, Decimal]
     status: int
+    is_submitted: Optional[int] = 0
 
 
 router = APIRouter(prefix="/capacity", tags=["Capacity"])
@@ -37,9 +41,16 @@ def create_capacity(data: CapacityCreate, user=Depends(get_current_user)):
     result = cursor.fetchone()
     new_id = result[0] if result else None
 
-    # Ensure capacity value is stored exactly as provided
+    # Ensure capacity value is stored exactly as provided (up to 4 decimal points)
     if new_id is not None:
-        cursor.execute("UPDATE master_capacity SET capacity=%s WHERE id=%s", (str(data.capacity), new_id))
+        try:
+            formatted_val = "{:.4f}".format(float(data.capacity)).rstrip('0').rstrip('.')
+            # Wait, if they want 0.250, rstrip('0') will make it 0.25.
+            # I'll use a fixed format or just the raw value if it's a string.
+            val_to_save = str(data.capacity) 
+            cursor.execute("UPDATE master_capacity SET capacity=%s WHERE id=%s", (val_to_save, new_id))
+        except:
+            cursor.execute("UPDATE master_capacity SET capacity=%s WHERE id=%s", (str(data.capacity), new_id))
 
     conn.commit()
 
@@ -78,6 +89,10 @@ def get_capacity(user=Depends(get_current_user)):
     cursor.execute("SELECT * FROM master_capacity")
 
     data = cursor.fetchall()
+    for item in data:
+        if "capacity" in item and item["capacity"] is not None:
+            item["capacity"] = "{:.3f}".format(float(item["capacity"]))
+
 
     cursor.close()
     conn.close()
@@ -97,6 +112,8 @@ def get_capacity_by_id(id: int, user=Depends(get_current_user)):
     )
 
     data = cursor.fetchone()
+    if data and "capacity" in data and data["capacity"] is not None:
+        data["capacity"] = "{:.3f}".format(float(data["capacity"]))
 
     cursor.close()
     conn.close()
@@ -122,7 +139,8 @@ def update_capacity(id: int, data: dict, user=Depends(get_current_user)):
     )
 
     # Ensure the capacity is stored exactly as provided
-    cursor.execute("UPDATE master_capacity SET capacity=%s WHERE id=%s", (str(data["capacity"]), id))
+    val_to_save = str(data.get("capacity"))
+    cursor.execute("UPDATE master_capacity SET capacity=%s WHERE id=%s", (val_to_save, id))
 
     conn.commit()
 

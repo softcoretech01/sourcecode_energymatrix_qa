@@ -141,7 +141,7 @@ Capacity(mW)
 
 <Input
 type="number"
-step="0.01"
+step="0.0001"
 value={capacity}
 onChange={(e) => setCapacity(e.target.value)}
 className="bg-white border-slate-300 h-10 text-sm"

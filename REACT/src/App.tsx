@@ -79,6 +79,7 @@ import InvestorsAdd from "./pages/investors_master/investors_add";
 import InvestorsEdit from "./pages/investors_master/investors_edit";
 
 import EBStatementPdf from "./pages/eb_statement/EBStatementPdf";
+import CompanyShares from "./pages/company_shares/CompanyShares";
 
 
 
@@ -201,6 +202,7 @@ const App = () => (
               <Route path="/master/investors" element={<InvestorsList />} />
               <Route path="/master/investors/add" element={<InvestorsAdd />} />
               <Route path="/master/investors/edit/:id" element={<InvestorsEdit />} />
+              <Route path="/master/company-shares" element={<CompanyShares />} />
               <Route path="/eb-statement/pdf" element={<EBStatementPdf />} />
 
             </Route>

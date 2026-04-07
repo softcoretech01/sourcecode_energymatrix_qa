@@ -8,6 +8,39 @@ export default function InvestorsAdd() {
     const navigate = useNavigate();
     const [investorName, setInvestorName] = React.useState("");
     const [shareQuantity, setShareQuantity] = React.useState("");
+    const [totalInvestorLimit, setTotalInvestorLimit] = React.useState<number>(0);
+    const [existingInvestorTotal, setExistingInvestorTotal] = React.useState<number>(0);
+
+    React.useEffect(() => {
+        const fetchData = async () => {
+            const token = localStorage.getItem("access_token");
+            if (!token) return;
+            
+            try {
+                // Fetch Total Investor Limit
+                const totalRes = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/total-shares/`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                const totalData = await totalRes.json();
+                if (Array.isArray(totalData) && totalData.length > 0) {
+                    setTotalInvestorLimit(Number(totalData[0].total_investor_shares || 0));
+                }
+
+                // Fetch Existing Investors Total
+                const listRes = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/investors/list`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                const listData = await listRes.json();
+                if (Array.isArray(listData)) {
+                    const sum = listData.reduce((acc, inv) => acc + (Number(inv.share_quantity) || 0), 0);
+                    setExistingInvestorTotal(sum);
+                }
+            } catch (err) {
+                console.error("Error fetching share limits", err);
+            }
+        };
+        fetchData();
+    }, []);
 
     const handleSave = async (isSubmitted = false) => {
         const token = localStorage.getItem("access_token");
@@ -22,9 +55,15 @@ export default function InvestorsAdd() {
             return;
         }
 
+        const currentQty = Number(shareQuantity) || 0;
+        if (existingInvestorTotal + currentQty > totalInvestorLimit) {
+            alert("Update Total Investor shares in Company Shares Page, to proceed.");
+            return;
+        }
+
         const payload = {
             investor_name: investorName.trim(),
-            share_quantity: Number(shareQuantity) || 0,
+            share_quantity: currentQty,
             status: 1,
             is_submitted: isSubmitted ? 1 : 0,
         };

@@ -124,20 +124,30 @@ def extract_eb_statement_data(pdf_path, expected_windmill_no, expected_year=None
                             data["charges"].append(charge_item)
 
 
-    # Validation
+    # 6. Extract Month/Year from specific "Statement Showing..." line
+    m_period = re.search(
+        r"Statement\s+Showing\s+the\s+Energy\s+Generated\s+for\s+([A-Za-z]+)\s*,\s*(\d{4})",
+        full_text,
+        re.IGNORECASE
+    )
+    extracted_month = None
+    extracted_year = None
+    if m_period:
+        extracted_month = m_period.group(1).strip()
+        extracted_year = m_period.group(2).strip()
+        data["month"] = normalize_month(extracted_month)
+        data["year"] = int(extracted_year)
+
     # Validation
     if data["windmill_number"] and expected_windmill_no:
         pdf_wm = re.sub(r"\D", "", str(data["windmill_number"]))
         expected_wm = re.sub(r"\D", "", str(expected_windmill_no))
-        # Sometimes PDF has a slash or prefix, we compare only digits
         if pdf_wm != expected_wm:
-            # We check if one contains the other (e.g. 12 digits vs 10 digits)
             if pdf_wm not in expected_wm and expected_wm not in pdf_wm:
                 raise Exception(f"Mismatch: PDF Windmill No ({data['windmill_number']}) does not match selected ({expected_windmill_no})")
                 
     if expected_month:
         month_names = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
-        # If expected_month is a digit like '3', get 'march' / 'mar'
         if str(expected_month).isdigit() and 1 <= int(expected_month) <= 12:
             idx = int(expected_month) - 1
             long_names = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"]
@@ -149,14 +159,23 @@ def extract_eb_statement_data(pdf_path, expected_windmill_no, expected_year=None
             short_month = long_month[:3]
             display_name = str(expected_month).capitalize()
             
-        # Use regex to match exactly 'march' or 'mar' as a whole word to prevent matching "margin"!
-        if not re.search(rf"\b({short_month}|{long_month})\b", full_text.lower()):
-            raise Exception(f"Mismatch: PDF does not appear to be for Month '{display_name}'")
+        # Validate specifically using the extracted month if available
+        if extracted_month:
+            if extracted_month.lower()[:3] != short_month:
+                raise Exception(f"You've selected a wrong month '{display_name}' but the pdf is of '{extracted_month}' data")
+        else:
+            # Fallback to generic text search
+            if not re.search(rf"\b({short_month}|{long_month})\b", full_text.lower()):
+                raise Exception(f"Mismatch: PDF does not appear to be for Month '{display_name}'")
                 
     if expected_year:
-        # Use word boundaries so "2026" doesn't match inside "120264"
-        if not re.search(rf"\b{expected_year}\b", full_text):
-            raise Exception(f"Mismatch: PDF does not appear to be for Year '{expected_year}'")
+        if extracted_year:
+            if str(extracted_year) != str(expected_year):
+                raise Exception(f"You've selected a wrong year '{expected_year}' but the pdf is of '{extracted_year}' data")
+        else:
+            # Fallback to generic text search
+            if not re.search(rf"\b{expected_year}\b", full_text):
+                raise Exception(f"Mismatch: PDF does not appear to be for Year '{expected_year}'")
 
     if expected_month:
         data["month"] = normalize_month(expected_month)
@@ -278,7 +297,8 @@ async def get_eb_statement_list(
     try:
         # Build dynamic query with windmill_number from masters table, created_at, and user name
         query = """
-            SELECT es.id, es.month, es.year, mw.windmill_number, es.pdf_file_path, es.is_submitted, es.created_at, u.name
+            SELECT es.id, es.month, es.year, mw.windmill_number, es.pdf_file_path, es.is_submitted, 
+                   COALESCE(es.modified_at, es.created_at) as submitted_time, u.name
             FROM windmill.eb_statements es
             LEFT JOIN masters.master_windmill mw ON es.windmill_id = mw.id
             LEFT JOIN masters.users u ON es.created_by = u.id
@@ -298,7 +318,7 @@ async def get_eb_statement_list(
             query += " AND es.month = %s"
             params.append(month)
         
-        query += " ORDER BY es.created_at DESC"
+        query += " ORDER BY submitted_time DESC"
         
         cursor.execute(query, params)
         result = cursor.fetchall()
@@ -312,8 +332,8 @@ async def get_eb_statement_list(
                 "windmill_number": row[3],
                 "pdf": row[4],
                 "is_submitted": row[5],
-                "created_at": row[6],
-                "created_by": row[7]
+                "submitted_time": row[6],
+                "submitted_by": row[7]
             })
 
         return {
@@ -744,6 +764,12 @@ async def save_eb_statement_details(
                 (payload.eb_header_id, charge_id, charge.amount, user_id)
             )
 
+        # 4. Mark as submitted and update modified time
+        cursor.execute(
+            "UPDATE windmill.eb_statements SET is_submitted=1, modified_at=NOW() WHERE id=%s",
+            (payload.eb_header_id,)
+        )
+        
         conn.commit()
         print(f"Successfully saved EB statement details for header {payload.eb_header_id}")
         return {"status": "success", "message": "Details saved successfully"}

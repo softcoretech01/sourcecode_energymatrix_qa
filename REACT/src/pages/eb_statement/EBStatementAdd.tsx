@@ -40,6 +40,8 @@ export default function EBStatementAdd() {
     const [uploading, setUploading] = useState(false);
     const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
     const [duplicateMessage, setDuplicateMessage] = useState("");
+    const [showMismatchDialog, setShowMismatchDialog] = useState(false);
+    const [mismatchMessage, setMismatchMessage] = useState("");
     const [forcingUpload, setForcingUpload] = useState(false);
 
     const currentYear = new Date().getFullYear();
@@ -148,12 +150,20 @@ export default function EBStatementAdd() {
             }
         } catch (err: any) {
             console.error(err);
+            const message = err.response?.data?.detail || err.response?.data?.message || "Upload failed";
+            
             // Check if conflict (duplicate upload) error
             if (err.response?.status === 409) {
-                setDuplicateMessage(err.response?.data?.detail || `EB Statement for ${selectedMonth} ${selectedYear} already exists`);
+                setDuplicateMessage(message);
                 setShowDuplicateDialog(true);
-            } else {
-                toast.error(err.response?.data?.detail || "Upload failed. Check backend.");
+            } 
+            // Check for mismatch error (wrong month/year)
+            else if (err.response?.status === 400 && message.toLowerCase().includes("selected a wrong")) {
+                setMismatchMessage(message);
+                setShowMismatchDialog(true);
+            }
+            else {
+                toast.error(message || "Upload failed. Check backend.");
             }
         } finally {
             setUploading(false);
@@ -330,6 +340,33 @@ export default function EBStatementAdd() {
                             className="bg-blue-600 hover:bg-blue-700"
                         >
                             Go to Statements List
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+            {/* Mismatch Warning Dialog */}
+            <Dialog open={showMismatchDialog} onOpenChange={setShowMismatchDialog}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <div className="flex items-center gap-2">
+                            <AlertCircle className="h-6 w-6 text-red-500" />
+                            <DialogTitle className="text-xl">Mismatch Detected</DialogTitle>
+                        </div>
+                        <DialogDescription className="pt-4 text-slate-800 font-medium text-base text-center">
+                            {mismatchMessage}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="bg-amber-50 p-4 rounded-md border border-amber-100 mt-2">
+                        <p className="text-sm text-amber-800 text-center">
+                            Please ensure the Month and Year fields exactly match the period mentioned in the PDF header.
+                        </p>
+                    </div>
+                    <DialogFooter className="mt-4">
+                        <Button
+                            onClick={() => setShowMismatchDialog(false)}
+                            className="bg-blue-600 hover:bg-blue-700 text-white w-full"
+                        >
+                            I'll Check and Retry
                         </Button>
                     </DialogFooter>
                 </DialogContent>

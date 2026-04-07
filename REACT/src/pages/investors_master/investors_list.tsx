@@ -29,10 +29,20 @@ export default function InvestorsList() {
     const [searchInvestor, setSearchInvestor] = useState("");
     const [searchKeyword, setSearchKeyword] = useState("");
     const [appliedInvestor, setAppliedInvestor] = useState("");
+    const [totalInvestorLimit, setTotalInvestorLimit] = useState<number>(0);
 
     const fetchInvestors = async () => {
         const token = localStorage.getItem("access_token");
         try {
+            // Fetch Global Limit
+            const limitRes = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/total-shares/`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const limitData = await limitRes.json();
+            if (Array.isArray(limitData) && limitData.length > 0) {
+                setTotalInvestorLimit(Number(limitData[0].total_investor_shares || 0));
+            }
+
             const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/investors/list`, {
                 headers: {
                     "Content-Type": "application/json",
@@ -110,6 +120,9 @@ export default function InvestorsList() {
         return matchesInvestor && matchesGlobal;
     });
 
+    const totalAssigned = investorsData.reduce((acc, inv) => acc + (Number(inv.shareQuantity) || 0), 0);
+    const balance = totalInvestorLimit - totalAssigned;
+
     const handleExportExcel = () => {
         const exportData = filteredData.map((row) => ({
             "Investor Name": row.investorName,
@@ -131,6 +144,11 @@ export default function InvestorsList() {
                     {/* Page Title */}
                     <div className="flex items-center justify-between pb-2">
                         <h1 className="text-xl font-bold text-slate-800">Master Investors - List</h1>
+                        {balance <= 0 && (
+                            <div className="text-[11px] font-bold text-red-500 bg-red-50 px-3 py-1 border border-red-100 rounded-md animate-pulse">
+                                Please update Investors shares in "Company Shares" page to include new investors
+                            </div>
+                        )}
                     </div>
 
                     <div className="space-y-1">
@@ -156,7 +174,12 @@ export default function InvestorsList() {
                             <Button size="sm" className="h-9 text-sm bg-primary hover:bg-primary/90 text-primary-foreground px-4" onClick={handleSearch}>
                                 Search
                             </Button>
-                            <Button size="sm" className="h-9 text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-4" onClick={() => navigate("/master/investors/add")}>
+                            <Button
+                                size="sm"
+                                className="h-9 text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-4"
+                                onClick={() => navigate("/master/investors/add")}
+                                disabled={balance <= 0}
+                            >
                                 + New
                             </Button>
                             <Button size="sm" className="h-9 text-sm bg-[#DAA520] hover:bg-[#B8860B] text-white px-4" onClick={handleExportExcel}>
@@ -171,7 +194,17 @@ export default function InvestorsList() {
                     {/* List Table Section */}
                     <div className="space-y-2">
                         <div className="flex justify-between items-center bg-primary/5 p-2 rounded-t-lg border-b border-primary/10 h-10">
-                            <h2 className="text-sm font-semibold text-primary pl-2">Investors Master Data</h2>
+                            <div className="flex items-center gap-6">
+                                <h2 className="text-sm font-semibold text-primary pl-2 whitespace-nowrap">Investors</h2>
+                                <div className="flex gap-5 border-l border-primary/20 pl-4 items-center">
+                                    <span className="text-[13px] font-bold text-[#B22222]">
+                                        Total Investor shares assigned: <span className="text-black ml-1">{totalAssigned}</span>
+                                    </span>
+                                    <span className="text-[13px] font-bold text-[#B22222]">
+                                        Balance: <span className="text-black ml-1">{balance}</span>
+                                    </span>
+                                </div>
+                            </div>
 
 
                             <div className="flex items-center gap-4">

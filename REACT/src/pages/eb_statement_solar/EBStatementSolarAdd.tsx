@@ -38,6 +38,8 @@ export default function EBStatementSolarAdd() {
   const [loading, setLoading] = useState(false);
   const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
   const [duplicateMessage, setDuplicateMessage] = useState("");
+  const [showMismatchDialog, setShowMismatchDialog] = useState(false);
+  const [mismatchMessage, setMismatchMessage] = useState("");
 
   const months = [
     { value: "1", label: "January" },
@@ -315,6 +317,13 @@ export default function EBStatementSolarAdd() {
                         setShowDuplicateDialog(true);
                         return;
                       }
+
+                      // Check for mismatch error (wrong month/year)
+                      if (res.status === 400 && message.toLowerCase().includes("selected a wrong")) {
+                        setMismatchMessage(message);
+                        setShowMismatchDialog(true);
+                        return;
+                      }
                       
                       toast.warning(`Warning: ${message}`);
                       return;
@@ -398,6 +407,33 @@ export default function EBStatementSolarAdd() {
               className="bg-blue-600 hover:bg-blue-700"
             >
               Go to Statements List
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {/* Mismatch Warning Dialog */}
+      <Dialog open={showMismatchDialog} onOpenChange={setShowMismatchDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-6 w-6 text-red-500" />
+              <DialogTitle className="text-xl">Mismatch Detected</DialogTitle>
+            </div>
+            <DialogDescription className="pt-4 text-slate-800 font-medium text-base text-center">
+              {mismatchMessage}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="bg-amber-50 p-4 rounded-md border border-amber-100 mt-2">
+            <p className="text-sm text-amber-800 text-center">
+              Please ensure the Month and Year fields exactly match the period mentioned in the PDF header.
+            </p>
+          </div>
+          <DialogFooter className="mt-4">
+            <Button
+              onClick={() => setShowMismatchDialog(false)}
+              className="bg-blue-600 hover:bg-blue-700 text-white w-full"
+            >
+              I'll Check and Retry
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -30,8 +30,8 @@ interface EBStatement {
     windmill_number: string;
     pdf: string;
     is_submitted: number;
-    created_at: string;
-    created_by: number | string;
+    submitted_time: string;
+    submitted_by: string;
 }
 
 interface Windmill {
@@ -229,7 +229,7 @@ export default function EBStatementList() {
                                     ) : statements.length > 0 ? (
                                         statements.map((row) => (
                                             <TableRow key={row.id} className="hover:bg-slate-50">
-                                                <TableCell className="py-2 text-sm w-1/6">{row.created_at ? format(new Date(row.created_at), "yyyy") : "-"}</TableCell>
+                                                <TableCell className="py-2 text-sm w-1/6">{row.submitted_time ? format(new Date(row.submitted_time), "yyyy") : "-"}</TableCell>
                                                 <TableCell className="py-2 text-sm w-1/6">{row.month}</TableCell>
                                                 <TableCell className="py-2 text-sm w-1/6">{row.windmill_number}</TableCell>
                                                 <TableCell className="py-2 text-center w-1/6">
@@ -246,10 +246,10 @@ export default function EBStatementList() {
                                                     </Button>
                                                 </TableCell>
                                                 <TableCell className="py-2 text-sm w-1/6">
-                                                    {row.created_at ? format(new Date(row.created_at), "dd MMM yyyy") + " : " + format(new Date(row.created_at), "hh:mm a") : "-"}
+                                                    {row.submitted_time ? format(new Date(row.submitted_time), "dd MMM yyyy") + " : " + format(new Date(row.submitted_time), "hh:mm a") : "-"}
                                                 </TableCell>
                                                 <TableCell className="py-2 text-sm w-1/6">
-                                                    {row.created_by || "-"}
+                                                    {row.submitted_by || "-"}
                                                 </TableCell>
                                             </TableRow>
                                         ))

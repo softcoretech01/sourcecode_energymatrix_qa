@@ -67,7 +67,8 @@ async def get_customer_list(user: dict = Depends(get_current_user)):
     conn = get_connection()
     cursor = conn.cursor(pymysql.cursors.DictCursor)
 
-    cursor.execute("CALL sp_get_customer_dropdown()")
+    # Use direct query to ensure data is fetched even if SP is missing or overly restrictive
+    cursor.execute("SELECT id, customer_name FROM master_customers WHERE status=1")
     rows = cursor.fetchall()
 
     cursor.close()

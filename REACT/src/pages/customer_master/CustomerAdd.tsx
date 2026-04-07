@@ -452,13 +452,13 @@ export default function CustomerAdd() {
     };
 
     const handlePost = async () => {
-        const customerId = createdCustomerId;
-        if (!customerId) {
-            toast.error("Please save the customer details first before posting.");
+        const token = localStorage.getItem("access_token");
+        if (!token) {
+            toast.error("Not authenticated – please log in first.");
+            navigate("/login");
             return;
         }
 
-        const token = localStorage.getItem("access_token");
         const payload: any = {
             customer_name: customerName,
             city,
@@ -471,8 +471,13 @@ export default function CustomerAdd() {
         if (email) payload.email = email;
 
         try {
-            const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/customers/${customerId}`, {
-                method: "PUT",
+            const endpoint = createdCustomerId 
+                ? `${import.meta.env.VITE_BACKEND_URL}/api/customers/${createdCustomerId}`
+                : `${import.meta.env.VITE_BACKEND_URL}/api/customers`;
+            const method = createdCustomerId ? "PUT" : "POST";
+
+            const res = await fetch(endpoint, {
+                method,
                 headers: {
                     "Content-Type": "application/json",
                     ...(token ? { Authorization: `Bearer ${token}` } : {}),

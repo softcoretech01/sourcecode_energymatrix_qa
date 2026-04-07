@@ -11,6 +11,8 @@ export default function InvestorsEdit() {
     const [investorName, setInvestorName] = useState("");
     const [shareQuantity, setShareQuantity] = useState("");
     const [isPosted, setIsPosted] = useState(false);
+    const [totalInvestorLimit, setTotalInvestorLimit] = useState<number>(0);
+    const [otherInvestorsTotal, setOtherInvestorsTotal] = useState<number>(0);
 
     const handleAuthError = (statusCode: number, data: any) => {
         const tokenExpired = data?.detail === "Token expired" || data?.message === "Token expired";
@@ -33,6 +35,26 @@ export default function InvestorsEdit() {
         }
 
         try {
+            // Load limits and other investors
+            const totalRes = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/total-shares/`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const totalData = await totalRes.json();
+            if (Array.isArray(totalData) && totalData.length > 0) {
+                setTotalInvestorLimit(Number(totalData[0].total_investor_shares || 0));
+            }
+
+            const listRes = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/investors/list`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+            const listData = await listRes.json();
+            if (Array.isArray(listData)) {
+                const othersSum = listData
+                    .filter(inv => Number(inv.id) !== Number(id))
+                    .reduce((acc, inv) => acc + (Number(inv.share_quantity) || 0), 0);
+                setOtherInvestorsTotal(othersSum);
+            }
+
             const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/investors/${id}`, {
                 headers: {
                     "Content-Type": "application/json",
@@ -71,6 +93,12 @@ export default function InvestorsEdit() {
 
         if (!investorName.trim()) {
             alert("Investor Name is required");
+            return;
+        }
+
+        const currentQty = Number(shareQuantity) || 0;
+        if (otherInvestorsTotal + currentQty > totalInvestorLimit) {
+            alert("Update Total Investor shares in Company Shares Page, to proceed.");
             return;
         }
 

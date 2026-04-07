@@ -739,8 +739,8 @@ async def read_pdf(
             month_name = normalize_month(month)
             
             # Clean names for filename
-            clean_cust = re.sub(r'[^a-zA-Z0-9]', '_', customer_name_db)
-            clean_sc = re.sub(r'[^a-zA-Z0-9]', '_', sc_number_db)
+            clean_cust = re.sub(r'[^a-zA-Z0-9]', '_', str(customer_name_db))
+            clean_sc = re.sub(r'[^a-zA-Z0-9]', '_', str(sc_number_db))
             
             # New Structured Path: uploads/eb_bills/customer_name/sc_number/year/month
             year_str = str(year)

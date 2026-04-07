@@ -338,58 +338,10 @@ export default function ShareHoldingsAdd() {
                 </div>
 
                 <div className="p-4 space-y-8">
-                    {/* First Row */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div className="space-y-1.5">
-                            <label className="text-sm font-semibold text-slate-700">Total No of Shares in the Company</label>
-                            <Input
-                                value={totalShares}
-                                onChange={(e) => setTotalShares(e.target.value)}
-                                placeholder="Enter total shares in company"
-                                type="number"
-                                className="bg-white border-slate-300 h-9 text-xs"
-                            />
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-sm font-semibold text-slate-700">Total Investor Shares</label>
-                            <Input
-                                value={computedInvestorShares}
-                                readOnly
-                                placeholder="Calculated automatically"
-                                className="bg-slate-100 border-slate-300 h-9 text-xs text-slate-500 font-medium"
-                            />
-                            {(persistedInvestorShares !== computedInvestorShares || !totalId) && (
-                                <p className="text-[11px] font-medium text-red-600">Please save the total shares since Investors are updated </p>
-                            )}
-                        </div>
-                        <div className="space-y-1.5">
-                            <label className="text-sm font-semibold text-slate-700">Total No of Customer Shares</label>
-                            <Input
-                                value={Number(totalShares || 0) ? totalCustomerShares : "0"}
-                                readOnly
-                                placeholder="Calculated automatically"
-                                className="bg-slate-100 border-slate-300 h-9 text-xs text-slate-500 font-medium"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="flex justify-start">
-                        <Button
-                            size="sm"
-                            className="bg-blue-600 hover:bg-blue-700 text-white h-8 px-8"
-                            disabled={savingTotal}
-                            onClick={handleSaveTotal}
-                        >
-                            Save Total Shares
-                        </Button>
-                    </div>
-
-                    <div className="border-t border-slate-200"></div>
-
-                    {/* Second Row */}
+                    {/* Add Shareholder Section (Now at the top) */}
                     <div>
                         <div className="flex items-center gap-4 mb-4">
-                            <h2 className="text-sm font-semibold text-slate-800">Add Shareholder Mapping</h2>
+                            <h2 className="text-sm font-semibold text-slate-800">Add Shareholder</h2>
                             <div className="flex items-center gap-2">
                                 <span className="text-sm font-semibold text-slate-700">
                                     Remaining Customer Share: <span className="text-[#cb4154]">{remainingCustomerShare}</span>
@@ -401,7 +353,7 @@ export default function ShareHoldingsAdd() {
                                 )}
                             </div>
                         </div>
-                        <div className="flex flex-col md:flex-row gap-4 items-end">
+                        <div className="flex flex-col md:flex-row gap-4 items-end border p-4 rounded-lg bg-slate-50/30">
                             <div className="space-y-1.5 flex-1">
                                 <label className="text-sm font-semibold text-slate-700">Customer Name</label>
                                 <Select value={currentCustomer} onValueChange={setCurrentCustomer} onOpenChange={(open) => open && fetchCustomers()}>

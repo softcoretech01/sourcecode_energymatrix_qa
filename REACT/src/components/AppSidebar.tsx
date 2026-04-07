@@ -102,6 +102,11 @@ export function AppSidebar() {
                     icon: Users,
                 },
                 {
+                    title: "Company Shares",
+                    url: "/master/company-shares",
+                    icon: PieChart,
+                },
+                {
                     title: "Investors",
                     url: "/master/investors",
                     icon: Users,
@@ -111,6 +116,7 @@ export function AppSidebar() {
                     url: "/master/share-holdings",
                     icon: PieChart,
                 },
+
                 {
                     title: "Consumption Charges",
                     url: "/master/consumption-charges",
@@ -139,53 +145,53 @@ export function AppSidebar() {
                     url: "/windmill",
                     icon: CloudSun,
                 },
-                {
-                    title: "EB Statement",
-                    url: "/eb-statement",
-                    icon: FileText,
-                },
-                {
-                    title: "Cust Cons Req",
-                    url: "/consumption-request",
-                    icon: ClipboardList,
-                },
-                {
-                    title: "Energy Allotment",
-                    url: "/energy-allotment",
-                    icon: Zap,
-                },
-                {
-                    title: "Client EB Bill",
-                    url: "/windmill/eb-bill",
-                    icon: CreditCard,
-                },
-                {
-                    title: "Actual Allotment",
-                    url: "/windmill/actuals",
-                    icon: CreditCard,
-                },
-                {
-                    title: "Client Invoice",
-                    url: "/windmill/client-invoice",
-                    icon: ReceiptText,
-                },
+                //{
+                //    title: "EB Statement",
+                //    url: "/eb-statement",
+                //    icon: FileText,
+                //},
+                //{
+                //    title: "Cust Cons Req",
+                //    url: "/consumption-request",
+                //    icon: ClipboardList,
+                //},
+                //{
+                //    title: "Energy Allotment",
+                //    url: "/energy-allotment",
+                //    icon: Zap,
+                //},
+                //{
+                //    title: "Client EB Bill",
+                //    url: "/windmill/eb-bill",
+                //    icon: CreditCard,
+                //},
+                //{
+                //   title: "Actual Allotment",
+                //    url: "/windmill/actuals",
+                //    icon: CreditCard,
+                //},
+                //{
+                //    title: "Client Invoice",
+                //    url: "/windmill/client-invoice",
+                //    icon: ReceiptText,
+                //},
 
 
 
             ]
         },
-        {
-            title: "Solar",
-            url: "#",
-            icon: CloudSun,
-            items: [
-                {
-                    title: "EB Statement-Solar",
-                    url: "/eb-statement-solar",
-                    icon: CreditCard,
-                },
-            ]
-        },
+        //{
+        //    title: "Solar",
+        //    url: "#",
+        //    icon: CloudSun,
+        //    items: [
+        //        {
+        //            title: "EB Statement-Solar",
+        //            url: "/eb-statement-solar",
+        //            icon: CreditCard,
+        //        },
+        //    ]
+        //},
         // {
         //     title: "SOP",
         //     url: "#",
@@ -336,7 +342,7 @@ export function AppSidebar() {
                         </SidebarMenuItem>
                     </SidebarMenu>
                     <div className="px-4 py-2 text-xs text-sidebar-foreground/70 text-center group-data-[collapsible=icon]:hidden">
-                        version 1.1.2
+                        version 1.1.3
                     </div>
                 </SidebarGroup>
             </SidebarContent>

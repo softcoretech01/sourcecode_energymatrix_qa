@@ -145,7 +145,7 @@ const App = () => (
               <Route path="/windmill/actuals" element={<ActualsList />} />
               <Route path="/windmill/actuals/add" element={<ActualsAdd />} />
               <Route path="/windmill/actuals/edit/:id" element={<ActualsEdit />} />
-              <Route path="/windmill/actuals/pdf" element={<ActualsPdf />} />
+              <Route path="/windmill/actuals/pdf/:client_eb_id" element={<ActualsPdf />} />
 
 
               <Route path="/windmill/client-invoice" element={<ClientInvoiceList />} />
@@ -177,12 +177,14 @@ const App = () => (
               <Route path="/master/customers" element={<CustomerList />} />
               <Route path="/master/customers/add" element={<CustomerAdd />} />
               <Route path="/master/customers/edit/:id" element={<CustomerEdit />} />
+              <Route path="/master/customers/view/:id" element={<CustomerEdit />} />
               <Route path="/master/share-holdings" element={<ShareHoldingsList />} />
               <Route path="/master/share-holdings/add" element={<ShareHoldingsAdd />} />
               <Route path="/master/share-holdings/edit/:id" element={<ShareHoldingsEdit />} />
               <Route path="/master/consumption-charges" element={<ConsumptionChargesList />} />
               <Route path="/master/consumption-charges/add" element={<ConsumptionChargesAdd />} />
               <Route path="/master/consumption-charges/edit/:id" element={<ConsumptionChargesEdit />} />
+              <Route path="/master/consumption-charges/view/:id" element={<ConsumptionChargesEdit />} />
 
               <Route path="/master/edc-circle" element={<EdcMasterList />} />
               <Route path="/master/edc-circle/add" element={<EdcMasterAdd />} />

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Search, Plus, Edit } from "lucide-react";
+import { Search, Plus, Edit, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatusSlider } from "@/components/StatusSlider";
@@ -330,13 +330,18 @@ export default function CustomerList() {
                                                         <Button 
                                                             variant="ghost" 
                                                             size="icon" 
-                                                            className={cn(
-                                                                "h-6 w-6 text-primary hover:bg-primary/10",
-                                                                row.is_submitted === 1 && "opacity-50 cursor-not-allowed"
-                                                            )} 
-                                                            disabled={row.is_submitted === 1}
+                                                            className="h-6 w-6 text-primary hover:bg-primary/10"
+                                                            onClick={() => { console.log('View clicked:', row); navigate(`/master/customers/view/${row.id}`); }}
+                                                            title="View Customer"
+                                                        >
+                                                            <Eye className="h-4 w-4" />
+                                                        </Button>
+                                                        <Button 
+                                                            variant="ghost" 
+                                                            size="icon" 
+                                                            className="h-6 w-6 text-primary hover:bg-primary/10"
                                                             onClick={() => { console.log('Edit clicked:', row); navigate(`/master/customers/edit/${row.id}`); }}
-                                                            title={row.is_submitted === 1 ? "Posted records cannot be edited" : "Edit Customer"}
+                                                            title="Edit Customer"
                                                         >
                                                             <Edit className="h-4 w-4" />
                                                         </Button>

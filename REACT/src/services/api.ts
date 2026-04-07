@@ -5,7 +5,7 @@ import axios, { AxiosError } from "axios";
  * Your app is hosted under:
  * https://softcoretech.in/energymatrix/uat
  */
-export const BACKEND_URL = "/energymatrix/uat";
+export const BACKEND_URL = "http://127.0.0.1:8000";
 export const BACKEND_API_URL = `${BACKEND_URL}/api`;
 export const BACKEND_UPLOAD_URL = `${BACKEND_URL}/uploads`;
 

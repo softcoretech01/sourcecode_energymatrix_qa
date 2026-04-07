@@ -1,5 +1,5 @@
-﻿import React, { useState, useEffect } from "react";
-import { ArrowLeft, UploadCloud } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { ArrowLeft, UploadCloud, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -8,6 +8,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { useNavigate } from "react-router-dom";
 import api, { BACKEND_API_URL } from "@/services/api";
 import { toast } from "sonner";
@@ -21,13 +29,15 @@ export default function EBStatementSolarAdd() {
   const navigate = useNavigate();
   const [selectedSolarId, setSelectedSolarId] = useState("");
   const [selectedSolar, setSelectedSolar] = useState("");
-  const [selectedMonth, setSelectedMonth] = useState((new Date().getMonth() + 1).toString());
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth().toString());
   const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
   const [solarOptions, setSolarOptions] = useState<SolarOption[]>([]);
   const [solarLoading, setSolarLoading] = useState(true);
   const [solarError, setSolarError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
+  const [duplicateMessage, setDuplicateMessage] = useState("");
 
   const months = [
     { value: "1", label: "January" },
@@ -197,11 +207,17 @@ export default function EBStatementSolarAdd() {
                     <SelectValue placeholder="Select Month" />
                   </SelectTrigger>
                   <SelectContent>
-                    {months.map((m) => (
-                      <SelectItem key={m.value} value={m.value}>
-                        {m.label}
-                      </SelectItem>
-                    ))}
+                    {months
+                      .filter((_, index) => {
+                        const now = new Date();
+                        const isCurrentYear = parseInt(selectedYear) === now.getFullYear();
+                        return isCurrentYear ? index < now.getMonth() : true;
+                      })
+                      .map((m) => (
+                        <SelectItem key={m.value} value={m.value}>
+                          {m.label}
+                        </SelectItem>
+                      ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -292,6 +308,14 @@ export default function EBStatementSolarAdd() {
 
                     if (!res.ok) {
                       const message = data?.detail || data?.message || "Upload failed";
+                      
+                      // Check if conflict (duplicate upload) error
+                      if (res.status === 409) {
+                        setDuplicateMessage(message);
+                        setShowDuplicateDialog(true);
+                        return;
+                      }
+                      
                       toast.warning(`Warning: ${message}`);
                       return;
                     }
@@ -345,6 +369,39 @@ export default function EBStatementSolarAdd() {
           </div>
         </div>
       </div>
+
+      {/* Duplicate Upload Warning Dialog */}
+      <Dialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <div className="flex items-center gap-2">
+              <AlertCircle className="h-5 w-5 text-red-600" />
+              <DialogTitle>Duplicate Upload Detected</DialogTitle>
+            </div>
+            <DialogDescription className="pt-3">
+              {duplicateMessage}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowDuplicateDialog(false)}
+              className="mr-2"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                setShowDuplicateDialog(false);
+                navigate("/eb-statement-solar");
+              }}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              Go to Statements List
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

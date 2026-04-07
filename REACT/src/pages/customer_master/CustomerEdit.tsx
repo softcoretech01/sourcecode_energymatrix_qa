@@ -8,7 +8,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { ArrowLeft, UserPlus, FileText, Phone, Upload, Eye, LayoutGrid, AlertTriangle, Edit } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
@@ -32,6 +32,9 @@ export default function CustomerEdit(): JSX.Element {
     const [activeTab, setActiveTab] = useState("customer");
     const [status, setStatus] = useState("active");
     const [isPosted, setIsPosted] = useState(false);
+    const { pathname } = useLocation();
+    const isViewOnly = pathname.includes("/view/");
+    const isReadOnly = isViewOnly;
     const [showPostConfirm, setShowPostConfirm] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
 
@@ -659,38 +662,36 @@ export default function CustomerEdit(): JSX.Element {
                 {/* Header */}
                 <div className="px-4 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-100/30">
                     <h1 className="text-lg font-bold text-slate-800">
-                        Master Customer - Update
+                        Master Customer - {isViewOnly ? "View" : "Update"}
                     </h1>
                     <div className="flex gap-2">
-                        <Button
-                            size="sm"
-                            className={cn(
-                                "bg-red-600 hover:bg-red-700 text-white h-8 px-4 rounded-md transition-all shadow-sm",
-                                isPosted && "opacity-50 cursor-not-allowed"
-                            )}
-                            onClick={handleUpdate}
-                            disabled={isPosted || isSaving}
-                        >
-                            {isSaving ? "Saving..." : (isPosted ? "Posted" : "Update")}
-                        </Button>
-                        <Button
-                            size="sm"
-                            className={cn(
-                                "bg-emerald-600 hover:bg-emerald-700 text-white h-8 px-4 rounded-md transition-all shadow-sm",
-                                isPosted && "opacity-50 cursor-not-allowed"
-                            )}
-                            disabled={isPosted}
-                            onClick={() => {
-                                // validate before showing confirmation dialog
-                                if (seNumbers.length === 0 || contacts.length === 0 || !totalAgreedUnits) {
-                                    toast.error("Please fill all tabs before posting.");
-                                    return;
-                                }
-                                setShowPostConfirm(true);
-                            }}
-                        >
-                            Post
-                        </Button>
+                        {!isViewOnly && (
+                            <>
+                                <Button
+                                    size="sm"
+                                    className={cn(
+                                        "bg-red-600 hover:bg-red-700 text-white h-8 px-4 rounded-md transition-all shadow-sm",
+                                        isSaving && "opacity-50 cursor-not-allowed"
+                                    )}
+                                    onClick={handleUpdate}
+                                    disabled={isSaving}
+                                >
+                                    {isSaving ? "Saving..." : "Update"}
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    className={cn(
+                                        "bg-emerald-600 hover:bg-emerald-700 text-white h-8 px-4 rounded-md transition-all shadow-sm"
+                                    )}
+                                    disabled={isReadOnly}
+                                    onClick={() => {
+                                        setShowPostConfirm(true);
+                                    }}
+                                >
+                                    Post
+                                </Button>
+                            </>
+                        )}
                         <Button
                             size="sm"
                             variant="outline"
@@ -791,7 +792,7 @@ export default function CustomerEdit(): JSX.Element {
                                             value={customerName}
                                             onChange={(e) => setCustomerName(e.target.value)}
                                             className="bg-white border-slate-300 h-10 text-sm focus:ring-blue-500"
-                                            disabled={isPosted}
+                                            disabled={isReadOnly}
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -800,7 +801,7 @@ export default function CustomerEdit(): JSX.Element {
                                             value={city}
                                             onChange={(e) => setCity(e.target.value)}
                                             className="bg-white border-slate-300 h-10 text-sm focus:ring-blue-500"
-                                            disabled={isPosted}
+                                            disabled={isReadOnly}
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -809,7 +810,7 @@ export default function CustomerEdit(): JSX.Element {
                                             value={phoneNo}
                                             onChange={(e) => setPhoneNo(e.target.value)}
                                             className="bg-white border-slate-300 h-10 text-sm focus:ring-blue-500"
-                                            disabled={isPosted}
+                                            disabled={isReadOnly}
                                         />
                                     </div>
                                     <div className="space-y-2">
@@ -819,7 +820,7 @@ export default function CustomerEdit(): JSX.Element {
                                             onChange={(e) => setEmail(e.target.value)}
                                             type="email"
                                             className="bg-white border-slate-300 h-10 text-sm focus:ring-blue-500"
-                                            disabled={isPosted}
+                                            disabled={isReadOnly}
                                         />
                                     </div>
                                     <div className="space-y-2 md:col-span-2">
@@ -830,7 +831,7 @@ export default function CustomerEdit(): JSX.Element {
                                             placeholder="Enter Address"
                                             maxLength={100}
                                             className="bg-white border-slate-300 min-h-[80px] text-sm focus:ring-blue-500"
-                                            disabled={isPosted}
+                                            disabled={isReadOnly}
                                         />
                                         <div className="text-right text-xs text-slate-500">{address.length}/100</div>
                                     </div>
@@ -841,12 +842,12 @@ export default function CustomerEdit(): JSX.Element {
                                             onChange={(e) => setGstNumber(e.target.value)}
                                             placeholder="Enter GST Number"
                                             className="bg-white border-slate-300 h-10 text-sm focus:ring-blue-500"
-                                            disabled={isPosted}
+                                            disabled={isReadOnly}
                                         />
                                     </div>
                                     <div className="space-y-2">
                                         <label className="text-sm font-semibold text-slate-700">Status</label>
-                                        <Select value={status} onValueChange={setStatus} disabled={isPosted}>
+                                        <Select value={status} onValueChange={setStatus} disabled={isReadOnly}>
                                             <SelectTrigger className="bg-white border-slate-300 h-10 text-sm focus:ring-blue-500">
                                                 <SelectValue placeholder="Select Status" />
                                             </SelectTrigger>
@@ -869,12 +870,12 @@ export default function CustomerEdit(): JSX.Element {
                                                 onChange={(e) => setNewSeNumber(e.target.value)}
                                                 placeholder="Enter SE Number"
                                                 className="bg-white border-slate-300 h-10 text-sm focus:ring-blue-500"
-                                                disabled={isPosted}
+                                                disabled={isReadOnly}
                                             />
                                         </div>
                                         <div className="md:col-span-3 space-y-2">
                                             <label className="text-sm font-semibold text-slate-700">KVA</label>
-                                            <Select value={newKva} onValueChange={setNewKva} disabled={isPosted}>
+                                            <Select value={newKva} onValueChange={setNewKva} disabled={isReadOnly}>
                                                 <SelectTrigger className="bg-white border-slate-300 h-10 text-sm focus:ring-blue-500">
                                                     <SelectValue placeholder="Select KVA" />
                                                 </SelectTrigger>
@@ -894,7 +895,7 @@ export default function CustomerEdit(): JSX.Element {
                                         </div>
                                         <div className="md:col-span-3 space-y-2">
                                             <label className="text-sm font-semibold text-slate-700">EDC Circle</label>
-                                            <Select value={newEdcCircle} onValueChange={setNewEdcCircle} disabled={isPosted}>
+                                            <Select value={newEdcCircle} onValueChange={setNewEdcCircle} disabled={isReadOnly}>
                                                 <SelectTrigger className="bg-white border-slate-300 h-10 text-sm focus:ring-blue-500">
                                                     <SelectValue placeholder="Select Circle" />
                                                 </SelectTrigger>
@@ -915,7 +916,7 @@ export default function CustomerEdit(): JSX.Element {
                                         </div>
                                         <div className="md:col-span-3 space-y-2">
                                             <label className="text-sm font-semibold text-slate-700">Status</label>
-                                            <Select value={newSeStatus} onValueChange={setNewSeStatus} disabled={isPosted}>
+                                            <Select value={newSeStatus} onValueChange={setNewSeStatus} disabled={isReadOnly}>
                                                 <SelectTrigger className="bg-white border-slate-300 h-10 text-sm focus:ring-blue-500">
                                                     <SelectValue placeholder="Select Status" />
                                                 </SelectTrigger>
@@ -933,7 +934,7 @@ export default function CustomerEdit(): JSX.Element {
                                                 placeholder="Enter Remarks"
                                                 maxLength={50}
                                                 className="bg-white border-slate-300 h-10 text-sm focus:ring-blue-500"
-                                                disabled={isPosted}
+                                                disabled={isReadOnly}
                                             />
                                             <div className="text-right text-xs text-slate-500">{newSeRemarks.length}/50</div>
                                         </div>
@@ -941,7 +942,7 @@ export default function CustomerEdit(): JSX.Element {
                                             <Button
                                                 onClick={handleAddSeNumber}
                                                 className={cn("bg-cyan-700 hover:bg-cyan-800 text-white gap-2", isPosted && "opacity-50 cursor-not-allowed")}
-                                                disabled={isPosted}
+                                                disabled={isReadOnly}
                                             >
                                                 <UserPlus className="h-4 w-4" /> Add
                                             </Button>
@@ -999,7 +1000,7 @@ export default function CustomerEdit(): JSX.Element {
                                                                     variant="ghost"
                                                                     size="icon"
                                                                     className={cn("h-8 w-8 text-blue-500 hover:bg-blue-50", isPosted && "opacity-50 cursor-not-allowed")}
-                                                                    disabled={isPosted}
+                                                                    disabled={isReadOnly}
                                                                     onClick={() => {
                                                                         setEditSeId(item.id);
                                                                         setNewSeNumber(
@@ -1041,7 +1042,7 @@ export default function CustomerEdit(): JSX.Element {
                                                 onChange={(e) => setNewContactPerson(e.target.value)}
                                                 placeholder="Name"
                                                 className="bg-white border-slate-300 h-10 text-sm focus:ring-blue-500"
-                                                disabled={isPosted}
+                                                disabled={isReadOnly}
                                             />
                                         </div>
                                         <div className="md:col-span-4 space-y-2">
@@ -1051,14 +1052,14 @@ export default function CustomerEdit(): JSX.Element {
                                                 onChange={(e) => setNewContactNumber(e.target.value)}
                                                 placeholder="Phone Number"
                                                 className="bg-white border-slate-300 h-10 text-sm focus:ring-blue-500"
-                                                disabled={isPosted}
+                                                disabled={isReadOnly}
                                             />
                                         </div>
                                         <div className="md:col-span-4">
                                             <Button
                                                 onClick={handleAddContact}
                                                 className={cn("w-full bg-indigo-600 hover:bg-indigo-700 text-white h-10", isPosted && "opacity-50 cursor-not-allowed")}
-                                                disabled={isPosted}
+                                                disabled={isReadOnly}
                                             >
                                                 <UserPlus className="h-4 w-4 mr-2" /> Add
                                             </Button>
@@ -1096,7 +1097,7 @@ export default function CustomerEdit(): JSX.Element {
                                                                     variant="ghost"
                                                                     size="icon"
                                                                     className={cn("h-8 w-8 text-blue-500 hover:bg-blue-50", isPosted && "opacity-50 cursor-not-allowed")}
-                                                                    disabled={isPosted}
+                                                                    disabled={isReadOnly}
                                                                     onClick={() => {
                                                                         setNewContactPerson(
                                                                             item.person || item.contact_person || item.contact_person_name || ""
@@ -1141,7 +1142,7 @@ export default function CustomerEdit(): JSX.Element {
                                                                 type="file"
                                                                 onChange={(e) => handleFileChange(item.id, e.target.files ? e.target.files[0] : null)}
                                                                 className="bg-white border-slate-300 h-9 text-xs focus:ring-blue-500 file:mr-4 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100"
-                                                                disabled={isPosted}
+                                                                disabled={isReadOnly}
                                                             />
                                                         </td>
                                                         <td className="px-4 py-3 text-slate-600 border-r border-slate-100">
@@ -1177,7 +1178,7 @@ export default function CustomerEdit(): JSX.Element {
                                                 onChange={(e) => setTotalAgreedUnits(e.target.value)}
                                                 placeholder="Enter Total Agreed Units"
                                                 className="bg-white border-slate-300 h-10 text-sm focus:ring-blue-500"
-                                                disabled={isPosted}
+                                                disabled={isReadOnly}
                                             />
                                         </div>
                                     </div>
@@ -1206,7 +1207,7 @@ export default function CustomerEdit(): JSX.Element {
                                                                     value={row.c1}
                                                                     onChange={(e) => handleAllocationChange(index, 'c1', e.target.value)}
                                                                     className="h-8 text-center text-xs"
-                                                                    disabled={isPosted}
+                                                                    disabled={isReadOnly}
                                                                 />
                                                             </td>
                                                             <td className="px-2 py-2 border-r border-slate-100">
@@ -1215,7 +1216,7 @@ export default function CustomerEdit(): JSX.Element {
                                                                     value={row.c2}
                                                                     onChange={(e) => handleAllocationChange(index, 'c2', e.target.value)}
                                                                     className="h-8 text-center text-xs"
-                                                                    disabled={isPosted}
+                                                                    disabled={isReadOnly}
                                                                 />
                                                             </td>
                                                             <td className="px-2 py-2 border-r border-slate-100">
@@ -1224,7 +1225,7 @@ export default function CustomerEdit(): JSX.Element {
                                                                     value={row.c4}
                                                                     onChange={(e) => handleAllocationChange(index, 'c4', e.target.value)}
                                                                     className="h-8 text-center text-xs"
-                                                                    disabled={isPosted}
+                                                                    disabled={isReadOnly}
                                                                 />
                                                             </td>
                                                             <td className="px-2 py-2 border-r border-slate-100">
@@ -1233,7 +1234,7 @@ export default function CustomerEdit(): JSX.Element {
                                                                     value={row.c5}
                                                                     onChange={(e) => handleAllocationChange(index, 'c5', e.target.value)}
                                                                     className="h-8 text-center text-xs"
-                                                                    disabled={isPosted}
+                                                                    disabled={isReadOnly}
                                                                 />
                                                             </td>
                                                             <td className="px-4 py-2 font-bold text-slate-700 bg-slate-50/50">

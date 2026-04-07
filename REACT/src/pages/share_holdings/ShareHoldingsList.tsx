@@ -288,14 +288,9 @@ const handleExportExcel = () => {
                                                        <Button
   variant="ghost"
   size="icon"
-  disabled={row.is_submitted === 1}
-  className={cn(
-    "h-6 w-6",
-    row.is_submitted === 1
-      ? "text-gray-400 cursor-not-allowed"
-      : "text-primary hover:text-primary hover:bg-primary/10"
-  )}
+  className="h-6 w-6 text-primary hover:text-primary hover:bg-primary/10"
   onClick={() => navigate(`/master/share-holdings/edit/${row.id}`)}
+  title="Edit"
 >
   <Edit className="h-4 w-4" />
 </Button>

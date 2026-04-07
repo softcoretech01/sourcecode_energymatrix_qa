@@ -273,8 +273,7 @@ export default function EdcMasterList(): JSX.Element {
                                                             size="icon"
                                                             className="h-6 w-6 text-primary hover:text-primary hover:bg-primary/10"
                                                             onClick={() => navigate(`/master/edc-circle/edit/${row.id}`)}
-                                                            disabled={row.is_submitted === 1}
-                                                            title={row.is_submitted === 1 ? "Editing disabled for posted EDC" : "Edit EDC"}
+                                                            title="Edit EDC"
                                                         >
                                                             <Edit className="h-4 w-4" />
                                                         </Button>

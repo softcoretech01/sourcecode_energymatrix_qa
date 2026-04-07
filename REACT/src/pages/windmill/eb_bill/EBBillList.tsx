@@ -1,6 +1,7 @@
-import React, { useState } from "react";
-import { Search, Edit, Upload, FileText, Scale } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Search, Edit, Upload, FileText } from "lucide-react";
 import { format } from "date-fns";
+import api from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -18,54 +19,93 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { cn, formatDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 
-// Mock Data matching the screenshot
-const data = [
-    {
-        id: 1,
-        readingDate: "2024-04-18",
-        windmillNumber: "WM-001",
-        exportedKwh: "1,200",
-        consumedKwh: "300",
-        unitValueExport: "5",
-        unitValueImport: "4,500", // Net payable in screenshot is last col, 4500. Wait. 300 * ?
-        netPayable: "4,500",
-        status: "Saved",
-    },
-    {
-        id: 2,
-        readingDate: "2024-04-21",
-        windmillNumber: "WM-002",
-        exportedKwh: "1,050",
-        consumedKwh: "290",
-        unitValueExport: "4.80",
-        unitValueImport: "3,624",
-        netPayable: "3,624",
-        status: "Posted",
-    },
-    {
-        id: 3,
-        readingDate: "2024-04-20",
-        windmillNumber: "WM-003",
-        exportedKwh: "1,300",
-        consumedKwh: "310",
-        unitValueExport: "5.20",
-        unitValueImport: "5,096",
-        netPayable: "5,096",
-        status: "Saved",
-    },
-];
+// Mock data is no longer needed
 
 export default function EBBillList() {
     const navigate = useNavigate();
-    const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
-    const [selectedMonth, setSelectedMonth] = useState<string>((new Date().getMonth() + 1).toString());
+    const [ebBills, setEbBills] = useState<any[]>([]);
+    const [customers, setCustomers] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [selectedYear, setSelectedYear] = useState<string>("");
+    const [selectedMonth, setSelectedMonth] = useState<string>("");
+    const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
 
     const currentYear = new Date().getFullYear();
     const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
+
+    useEffect(() => {
+        const fetchInitialData = async () => {
+            try {
+                setLoading(true);
+                // Fetch customers for dropdown — same source as the Add page
+                const custRes = await api.get("/eb-bill/customers");
+                if (custRes.data?.status === "success" && Array.isArray(custRes.data.data)) {
+                    setCustomers(custRes.data.data);
+                }
+
+                // Initial fetch for bills
+                const res = await api.get("/eb-bill/list");
+                if (res.data?.status === "success") {
+                    setEbBills(res.data.data);
+                }
+            } catch (err) {
+                console.error("Failed to fetch initial data", err);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchInitialData();
+
+        // Listen for page visibility changes to refetch when user returns
+        const handleVisibilityChange = () => {
+            if (!document.hidden) {
+                console.log("Page became visible, refreshing EB bill list...");
+                fetchInitialData();
+            }
+        };
+
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+        return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
+    }, []);
+
+    const handleSearch = async () => {
+        try {
+            setLoading(true);
+            const params: any = {};
+            if (selectedCustomerId && selectedCustomerId !== "none") params.customer_id = selectedCustomerId;
+            if (selectedYear) params.year = selectedYear;
+            if (selectedMonth) params.month = selectedMonth;
+
+            const res = await api.get("/eb-bill/list", { params });
+            if (res.data?.status === "success") {
+                setEbBills(res.data.data);
+            }
+        } catch (err) {
+            console.error("Search failed", err);
+            alert("Failed to search bills");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleViewPdf = async (id: number) => {
+        try {
+            const res = await api.get(`/eb-bill/view/${id}`);
+            if (res.status === 200) {
+                const viewData = { ...res.data, isViewMode: true };
+                sessionStorage.setItem("ebData", JSON.stringify(viewData));
+                navigate("/windmill/eb-bill/pdf");
+            }
+        } catch (err) {
+            console.error("Failed to view EB bill", err);
+            alert("Error loading EB bill details");
+        }
+    };
 
     const months = [
         { value: "1", label: "January" },
@@ -96,14 +136,17 @@ export default function EBBillList() {
                     <div className="space-y-1">
                         <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg flex flex-wrap gap-2 items-center">
                             <span className="text-sm font-semibold text-slate-600 mr-2">Search</span>
-                            <Select>
+                            <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
                                 <SelectTrigger className="w-[200px] h-9 bg-white border-slate-300 text-sm">
-                                    <SelectValue placeholder="Select" />
+                                    <SelectValue placeholder="Select Customer" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="wm-001">WM-001</SelectItem>
-                                    <SelectItem value="wm-002">WM-002</SelectItem>
-                                    <SelectItem value="wm-003">WM-003</SelectItem>
+                                    <SelectItem value="none">All Customers</SelectItem>
+                                    {customers.map((c) => (
+                                        <SelectItem key={c.id} value={c.id.toString()}>
+                                            {c.customer_name}
+                                        </SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
 
@@ -137,14 +180,11 @@ export default function EBBillList() {
 
                             <div className="flex-1"></div>
 
-                            <Button size="sm" className="h-9 text-sm bg-primary hover:bg-primary/90 text-primary-foreground px-4">
+                            <Button size="sm" className="h-9 text-sm bg-primary hover:bg-primary/90 text-primary-foreground px-4" onClick={handleSearch}>
                                 Search
                             </Button>
                             <Button size="sm" className="h-9 text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-4" onClick={() => navigate("/windmill/eb-bill/add")}>
                                 + New
-                            </Button>
-                            <Button size="sm" className="h-9 text-sm bg-[#DAA520] hover:bg-[#B8860B] text-white px-4">
-                                Export Excel
                             </Button>
                             <Button size="sm" className="h-9 text-sm bg-red-600 hover:bg-red-700 text-white px-4">
                                 Cancel
@@ -158,17 +198,6 @@ export default function EBBillList() {
                             <h2 className="text-sm font-semibold text-primary pl-2">EB Bill List</h2>
 
                             <div className="flex items-center gap-4">
-                                {/* Legend */}
-                                <div className="flex gap-3 items-center">
-                                    <div className="flex items-center gap-1.5">
-                                        <Badge className="bg-red-600 hover:bg-red-700 text-white font-bold w-6 h-6 text-[10px] rounded flex items-center justify-center p-0 shadow-sm border-none">S</Badge>
-                                        <span className="text-xs font-medium text-slate-600">Saved</span>
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold w-6 h-6 text-[10px] rounded flex items-center justify-center p-0 shadow-sm border-none">P</Badge>
-                                        <span className="text-xs font-medium text-slate-600">Posted</span>
-                                    </div>
-                                </div>
 
                                 <div className="relative w-64">
                                     <Search className="absolute right-2 top-2.5 h-4 w-4 text-slate-400" />
@@ -184,29 +213,50 @@ export default function EBBillList() {
                             <Table>
                                 <TableHeader className="bg-sidebar">
                                     <TableRow>
-                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap">Month</TableHead>
-                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap">Windmill Number</TableHead>
-                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap text-center">PDF</TableHead>
-                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap text-center">Comparison Charges</TableHead>
+                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap w-1/5 pl-6">Year</TableHead>
+                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap w-1/5">Month</TableHead>
+                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap text-center w-1/5">PDF</TableHead>
+                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap w-1/5">Submitted Date and Time</TableHead>
+                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap w-1/5">Submitted By</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {data.map((row) => (
-                                        <TableRow key={row.id} className="hover:bg-slate-50">
-                                            <TableCell className="py-2 text-sm">{formatDate(new Date(row.readingDate))}</TableCell>
-                                            <TableCell className="py-2 text-sm">{row.windmillNumber}</TableCell>
-                                            <TableCell className="py-2 text-center">
-                                                <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50">
-                                                    <FileText className="h-4 w-4" />
-                                                </Button>
-                                            </TableCell>
-                                            <TableCell className="py-2 text-center">
-                                                <Button variant="ghost" size="icon" className="h-6 w-6 text-blue-500 hover:text-blue-700 hover:bg-blue-50">
-                                                    <Scale className="h-4 w-4" />
-                                                </Button>
+                                    {loading ? (
+                                        <TableRow>
+                                            <TableCell colSpan={5} className="text-center py-4 text-slate-500">
+                                                Loading EB Bills...
                                             </TableCell>
                                         </TableRow>
-                                    ))}
+                                    ) : ebBills.length === 0 ? (
+                                        <TableRow>
+                                            <TableCell colSpan={5} className="text-center py-4 text-slate-500">
+                                                No EB Bills found
+                                            </TableCell>
+                                        </TableRow>
+                                    ) : (
+                                        ebBills.map((row, idx) => (
+                                            <TableRow key={idx} className="hover:bg-slate-50">
+                                                <TableCell className="py-2 text-sm font-medium w-1/5 pl-6">{row.created_at ? format(new Date(row.created_at), "yyyy") : "-"}</TableCell>
+                                                <TableCell className="py-2 text-sm w-1/5">
+                                                    {months.find(m => m.value === String(row.bill_month))?.label || row.bill_month}
+                                                </TableCell>
+                                                <TableCell className="py-2 text-center w-1/5">
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                                        onClick={() => handleViewPdf(row.id)}
+                                                    >
+                                                        <FileText className="h-4 w-4" />
+                                                    </Button>
+                                                </TableCell>
+                                                <TableCell className="py-2 text-sm w-1/5">
+                                                    {row.created_at ? format(new Date(row.created_at), "dd MMM yyyy") + " : " + format(new Date(row.created_at), "hh:mm a") : "-"}
+                                                </TableCell>
+                                                <TableCell className="py-2 text-sm w-1/5">{row.created_by || "-"}</TableCell>
+                                            </TableRow>
+                                        ))
+                                    )}
                                 </TableBody>
                             </Table>
                         </div>

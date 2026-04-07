@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import api from "../../services/api";
-import { FileText, ArrowLeft, Loader2, Hash, Info, Briefcase, Zap, Calculator } from "lucide-react";
+import { FileText, ArrowLeft, Loader2, Hash, Info, Briefcase, Zap, Calculator, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -25,17 +25,57 @@ const EBStatementPdf = () => {
                 return;
             }
 
+            // 1. Try sessionStorage first (fastest - written by upload page)
+            const storedHeaderId = sessionStorage.getItem("ebStatementHeaderId");
+            const storedParsed = sessionStorage.getItem("ebStatementParsedData");
+
+            if (storedHeaderId) {
+                const hId = parseInt(storedHeaderId, 10);
+                if (!Number.isNaN(hId) && hId > 0) {
+                    setHeaderId(hId);
+                }
+            }
+            if (storedParsed) {
+                try {
+                    setData(JSON.parse(storedParsed));
+                } catch { /* ignore */ }
+            }
+
+            // 2. Always also call read-metadata to get full data / check if already saved
             try {
                 const res = await api.get(`/eb/read-metadata?filename=${filename}`);
                 if (res.data.status === "success") {
-                    setData(res.data.data);
-                    setHeaderId(res.data.header_id);
-                } else {
-                    toast.error("Failed to read statement data");
+                    const hId = res.data.header_id;
+                    if (hId) {
+                        setHeaderId(hId);
+                        sessionStorage.setItem("ebStatementHeaderId", String(hId));
+                    }
+
+                    if (hId) {
+                        try {
+                            const detailsRes = await api.get(`/eb/details/${hId}`);
+                            if (detailsRes.data.status === "success" && detailsRes.data.data?.charges?.length > 0) {
+                                setData({
+                                    ...detailsRes.data.data,
+                                    company_name: res.data.data?.company_name,
+                                    windmill_number: res.data.data?.windmill_number
+                                });
+                                setSaved(true);
+                            } else if (!storedParsed) {
+                                setData(res.data.data);
+                            }
+                        } catch {
+                            if (!storedParsed) setData(res.data.data);
+                        }
+                    } else if (!storedParsed) {
+                        setData(res.data.data);
+                    }
                 }
             } catch (err) {
-                console.error(err);
-                toast.error("Error reading statement data");
+                console.warn("read-metadata call failed, using sessionStorage data:", err);
+                if (!storedParsed && !storedHeaderId) {
+                    toast.error("Error reading statement data. Please re-upload.");
+                }
             } finally {
                 setLoading(false);
             }
@@ -140,18 +180,24 @@ const EBStatementPdf = () => {
                             <CardTitle className="text-lg">Header Information</CardTitle>
                         </CardHeader>
                         <CardContent className="pt-4">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <div className="flex justify-between border-b pb-2 md:border-b-0 md:border-r md:pr-4">
-                                    <span className="flex items-center text-sm font-medium text-slate-500">
-                                        <Briefcase className="mr-2 h-4 w-4" /> Company Name
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                <div className="flex flex-col space-y-1">
+                                    <span className="flex items-center text-xs font-medium text-slate-500 uppercase tracking-wider">
+                                        <Briefcase className="mr-2 h-3.5 w-3.5" /> Company Name
                                     </span>
-                                    <span className="text-sm font-semibold">{data.company_name || "N/A"}</span>
+                                    <span className="text-sm font-bold text-slate-800 break-words">{data.company_name || "N/A"}</span>
                                 </div>
-                                <div className="flex justify-between pb-2 md:pb-0 md:pl-4">
-                                    <span className="flex items-center text-sm font-medium text-slate-500">
-                                        <Hash className="mr-2 h-4 w-4" /> Windmill Number
+                                <div className="flex flex-col space-y-1 md:border-x md:px-6">
+                                    <span className="flex items-center text-xs font-medium text-slate-500 uppercase tracking-wider">
+                                        <Hash className="mr-2 h-3.5 w-3.5" /> Windmill Number
                                     </span>
-                                    <span className="text-sm font-semibold font-mono text-blue-700">{data.windmill_number || "N/A"}</span>
+                                    <span className="text-sm font-bold font-mono" style={{ color: 'firebrick' }}>{data.windmill_number || "N/A"}</span>
+                                </div>
+                                <div className="flex flex-col space-y-1">
+                                    <span className="flex items-center text-xs font-medium text-slate-500 uppercase tracking-wider">
+                                        <Calendar className="mr-2 h-3.5 w-3.5" /> Month / Year
+                                    </span>
+                                    <span className="text-sm font-bold text-slate-800">{data.month || "N/A"} / {data.year || "N/A"}</span>
                                 </div>
                             </div>
                         </CardContent>

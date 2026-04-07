@@ -233,9 +233,9 @@ export default function InvestorsList() {
                                                         <Button
                                                             variant="ghost"
                                                             size="icon"
-                                                            className={row.is_submitted === 1 ? "h-6 w-6 text-slate-300" : "h-6 w-6 text-primary hover:text-primary hover:bg-primary/10"}
+                                                            className="h-6 w-6 text-primary hover:text-primary hover:bg-primary/10"
                                                             onClick={() => navigate(`/master/investors/edit/${row.id}`)}
-                                                            disabled={row.is_submitted === 1}
+                                                            title="Edit Investor"
                                                         >
                                                             <Edit className="h-4 w-4" />
                                                         </Button>

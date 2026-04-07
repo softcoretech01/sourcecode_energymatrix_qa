@@ -367,8 +367,7 @@ const handleExportExcel = () => {
   size="icon"
   className="h-6 w-6 text-primary hover:text-primary hover:bg-primary/10"
   onClick={() => navigate(`/master/transmission-loss/edit/${row.id}`)}
-  disabled={row.is_submitted === 1}
-title={row.is_submitted === 1 ? "Cannot edit posted record" : "Edit"}
+title="Edit"
 >
   <Edit className="h-4 w-4" />
 </Button>

@@ -4,6 +4,8 @@ from app.utils.auth_utils import get_current_user
 from app.database import initialize_database
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
 # Routers
 from app.routers.customer_router import router as customer_router
@@ -21,6 +23,8 @@ from app.routers.investors_routes import router as investors_routes
 from app.routers.capacity_routes import router as capacity_routes
 from app.routers.consumption_routes import router as consumption_routes
 from app.routers.transmission_routes import router as transmission_routes
+from app.routers.actual_allotment import router as actual_allotment_router
+from app.routers.consumption_request import router as consumption_req_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -60,6 +64,6 @@ app.include_router(auth_routes, prefix="/api") # Auth routes are public
 app.include_router(investors_routes, prefix="/api", dependencies=auth_dep)
 app.include_router(capacity_routes, prefix="/api", dependencies=auth_dep)
 app.include_router(consumption_routes, prefix="/api", dependencies=auth_dep)
-from app.routers.consumption_request import router as consumption_req_router
 app.include_router(consumption_req_router, prefix="/api") # We'll handle Depends(get_current_user) inside the routes to get the user object
 app.include_router(transmission_routes, prefix="/api", dependencies=auth_dep)
+app.include_router(actual_allotment_router, prefix="/api", dependencies=auth_dep)

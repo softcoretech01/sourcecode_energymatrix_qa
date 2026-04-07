@@ -35,6 +35,8 @@ except Exception:
 # -------------------------------------------------------
 @router.post("", response_model=WindmillMessage)
 async def create_windmill(data: WindmillCreate, user: dict = Depends(get_current_user)):
+    conn = None
+    cursor = None
     try:
         conn = get_connection()
         cursor = conn.cursor(pymysql.cursors.DictCursor)
@@ -104,14 +106,18 @@ async def create_windmill(data: WindmillCreate, user: dict = Depends(get_current
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        cursor.close()
-        conn.close()
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 # -------------------------------------------------------
 # GET ALL WINDMILLS
 # -------------------------------------------------------
 @router.get("")
 async def get_windmills(user: dict = Depends(get_current_user)):
+    conn = None
+    cursor = None
     try:
         conn = get_connection()
         cursor = conn.cursor(pymysql.cursors.DictCursor)
@@ -121,8 +127,10 @@ async def get_windmills(user: dict = Depends(get_current_user)):
         return result
 
     finally:
-        cursor.close()
-        conn.close()
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 
 # -------------------------------------------------------
@@ -130,6 +138,8 @@ async def get_windmills(user: dict = Depends(get_current_user)):
 # -------------------------------------------------------
 @router.get("/{windmill_id}")
 async def get_windmill(windmill_id: int, user: dict = Depends(get_current_user)):
+    conn = None
+    cursor = None
     try:
         conn = get_connection()
         cursor = conn.cursor(pymysql.cursors.DictCursor)
@@ -143,8 +153,10 @@ async def get_windmill(windmill_id: int, user: dict = Depends(get_current_user))
         return row
 
     finally:
-        cursor.close()
-        conn.close()
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 
 # -------------------------------------------------------
@@ -152,6 +164,8 @@ async def get_windmill(windmill_id: int, user: dict = Depends(get_current_user))
 # -------------------------------------------------------
 @router.put("/{windmill_id}")
 async def update_windmill(windmill_id: int, data: WindmillCreate, user: dict = Depends(get_current_user)):
+    conn = None
+    cursor = None
     try:
         conn = get_connection()
         cursor = conn.cursor(pymysql.cursors.DictCursor)
@@ -221,8 +235,10 @@ async def update_windmill(windmill_id: int, data: WindmillCreate, user: dict = D
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        cursor.close()
-        conn.close()
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 
 # -------------------------------------------------------
@@ -230,6 +246,8 @@ async def update_windmill(windmill_id: int, data: WindmillCreate, user: dict = D
 # -------------------------------------------------------
 @router.delete("/{windmill_id}")
 async def delete_windmill(windmill_id: int, user: dict = Depends(get_current_user)):
+    conn = None
+    cursor = None
     try:
         conn = get_connection()
         cursor = conn.cursor(pymysql.cursors.DictCursor)
@@ -242,8 +260,10 @@ async def delete_windmill(windmill_id: int, user: dict = Depends(get_current_use
         return {"message": "Windmill deleted successfully"}
 
     finally:
-        cursor.close()
-        conn.close()
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 
 # -------------------------------------------------------
@@ -251,6 +271,8 @@ async def delete_windmill(windmill_id: int, user: dict = Depends(get_current_use
 # -------------------------------------------------------
 @router.get("/{windmill_id}/uploads")
 async def get_windmill_uploads(windmill_id: int, user: dict = Depends(get_current_user)):
+    conn = None
+    cursor = None
     try:
         conn = get_connection()
         cursor = conn.cursor(pymysql.cursors.DictCursor)
@@ -286,8 +308,10 @@ async def get_windmill_uploads(windmill_id: int, user: dict = Depends(get_curren
         ]
 
     finally:
-        cursor.close()
-        conn.close()
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
 
 
 @router.post("/{windmill_id}/uploads")
@@ -301,6 +325,8 @@ async def upload_windmill_docs(
     amc_document_upload: UploadFile | None = File(None),
     insurance_policy_upload: UploadFile | None = File(None),
 ):
+    conn = None
+    cursor = None
     try:
         conn = get_connection()
         cursor = conn.cursor()
@@ -353,5 +379,7 @@ async def upload_windmill_docs(
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        cursor.close()
-        conn.close()
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()

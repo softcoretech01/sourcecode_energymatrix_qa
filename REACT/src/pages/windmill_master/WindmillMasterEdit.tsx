@@ -8,7 +8,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { Calendar as CalendarIcon, ArrowLeft, Upload, Eye, FileText, Clock } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -33,6 +33,9 @@ export default function WindmillMasterEdit() {
     const [activeTab, setActiveTab] = useState("windmill_details");
     const [edcCircle, setEdcCircle] = useState("");
     const [isPosted, setIsPosted] = useState(false);
+    const { pathname } = useLocation();
+    const isViewOnly = pathname.includes("/view/");
+    const isReadOnly = isViewOnly;
 
     // Windmill form state
     const [windmillNumber, setWindmillNumber] = useState("");
@@ -512,25 +515,29 @@ export default function WindmillMasterEdit() {
                 {/* Header */}
                 <div className="px-4 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
                     <h1 className="text-lg font-semibold text-indigo-700">
-                        Master Windmill - Update
+                        Master Windmill - {isViewOnly ? "View" : "Update"}
                     </h1>
                     <div className="flex gap-2">
-                        <Button
-                            size="sm"
-                            className="bg-red-600 hover:bg-red-700 text-white h-8 px-4 rounded-md transition-all shadow-sm"
-                            onClick={() => updateWindmill(false)}
-                            disabled={isPosted || isSaving || isPosting || isUploadingDocs}
-                        >
-                            {isSaving ? "Saving..." : "Update"}
-                        </Button>
-                        <Button
-                            size="sm"
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 px-4 rounded-md transition-all shadow-sm"
-                            onClick={() => updateWindmill(true)}
-                            disabled={isPosted || isSaving || isPosting || isUploadingDocs}
-                        >
-                            {isPosting ? "Posting..." : "Post"}
-                        </Button>
+                        {!isViewOnly && (
+                            <>
+                                <Button
+                                    size="sm"
+                                    className="bg-red-600 hover:bg-red-700 text-white h-8 px-4 rounded-md transition-all shadow-sm"
+                                    onClick={() => updateWindmill(false)}
+                                    disabled={isSaving || isPosting || isUploadingDocs}
+                                >
+                                    {isSaving ? "Saving..." : "Update"}
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 px-4 rounded-md transition-all shadow-sm"
+                                    onClick={() => updateWindmill(true)}
+                                    disabled={isSaving || isPosting || isUploadingDocs}
+                                >
+                                    {isPosting ? "Posting..." : "Post"}
+                                </Button>
+                            </>
+                        )}
                         <Button
                             size="sm"
                             variant="outline"
@@ -629,7 +636,7 @@ export default function WindmillMasterEdit() {
                                                 value={windmillNumber}
                                                 onChange={(e) => setWindmillNumber(e.target.value)}
                                                 placeholder="Enter WM Number"
-                                                disabled={isPosted}
+                                                disabled={isReadOnly}
                                                 className="bg-white border-slate-300 h-9 text-xs"
                                             />
                                         </div>
@@ -639,14 +646,14 @@ export default function WindmillMasterEdit() {
                                                 value={windmillName}
                                                 onChange={(e) => setWindmillName(e.target.value)}
                                                 placeholder="Enter Windmill Name"
-                                                disabled={isPosted}
+                                                disabled={isReadOnly}
                                                 className="bg-white border-slate-300 h-9 text-xs"
                                             />
                                         </div>
 
                                         <div className="space-y-1.5">
                                             <label className="text-sm font-semibold text-slate-700">Status</label>
-                                            <Select value={status} onValueChange={setStatus} disabled={isPosted}>
+                                            <Select value={status} onValueChange={setStatus} disabled={isReadOnly}>
                                                 <SelectTrigger className="bg-white border-slate-300 h-9 text-xs">
                                                     <SelectValue placeholder="Active" />
                                                 </SelectTrigger>
@@ -665,7 +672,7 @@ export default function WindmillMasterEdit() {
                                                     setKvaId(value);
                                                     applyTransmissionLossFromKva(value);
                                                 }}
-                                                disabled={isPosted}
+                                                disabled={isReadOnly}
                                             >
                                                 <SelectTrigger className="bg-white border-slate-300 h-9 text-xs">
                                                     <SelectValue placeholder="Select KVA" />
@@ -685,7 +692,7 @@ export default function WindmillMasterEdit() {
                                                 setCapacityId(val);
                                                 const selected = capacityOptions.find((c) => String(c.id) === val);
                                                 setWindmillCapacity(selected ? (selected.capacity_mw ?? selected.capacity ?? "") : "");
-                                            }} disabled={isPosted}>
+                                            }} disabled={isReadOnly}>
                                                 <SelectTrigger className="bg-white border-slate-300 h-9 text-xs">
                                                     <SelectValue placeholder="Select Capacity" />
                                                 </SelectTrigger>
@@ -706,7 +713,7 @@ export default function WindmillMasterEdit() {
                                         </div>
                                         <div className="space-y-1.5">
                                             <label className="text-sm font-semibold text-slate-700">EDC Circle</label>
-                                            <Select value={edcCircle} onValueChange={setEdcCircle} disabled={isPosted}>
+                                            <Select value={edcCircle} onValueChange={setEdcCircle} disabled={isReadOnly}>
                                                 <SelectTrigger className="bg-white border-slate-300 h-9 text-xs">
                                                     <SelectValue placeholder="Select EDC Circle" />
                                                 </SelectTrigger>
@@ -725,7 +732,7 @@ export default function WindmillMasterEdit() {
                                                 value={aeName}
                                                 onChange={(e) => setAeName(e.target.value)}
                                                 placeholder="Enter AE Name"
-                                                disabled={isPosted}
+                                                disabled={isReadOnly}
                                                 className="bg-white border-slate-300 h-9 text-xs"
                                             />
                                         </div>
@@ -735,7 +742,7 @@ export default function WindmillMasterEdit() {
                                                 value={aeNumber}
                                                 onChange={(e) => setAeNumber(e.target.value)}
                                                 placeholder="Enter AE Number"
-                                                disabled={isPosted}
+                                                disabled={isReadOnly}
                                                 className="bg-white border-slate-300 h-9 text-xs"
                                             />
                                         </div>
@@ -746,7 +753,7 @@ export default function WindmillMasterEdit() {
                                                 value={operatorName}
                                                 onChange={(e) => setOperatorName(e.target.value)}
                                                 placeholder="Enter Operator Name"
-                                                disabled={isPosted}
+                                                disabled={isReadOnly}
                                                 className="bg-white border-slate-300 h-9 text-xs"
                                             />
                                         </div>
@@ -756,7 +763,7 @@ export default function WindmillMasterEdit() {
                                                 value={contactNumber}
                                                 onChange={(e) => setContactNumber(e.target.value)}
                                                 placeholder="Enter Contact Number"
-                                                disabled={isPosted}
+                                                disabled={isReadOnly}
                                                 className="bg-white border-slate-300 h-9 text-xs"
                                             />
                                         </div>
@@ -765,7 +772,7 @@ export default function WindmillMasterEdit() {
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-4 pt-4 border-t border-slate-100">
                                         <div className="space-y-1.5">
                                             <label className="text-sm font-semibold text-slate-700">AMC Type</label>
-                                            <Select value={amcType} onValueChange={setAmcType} disabled={isPosted}>
+                                            <Select value={amcType} onValueChange={setAmcType} disabled={isReadOnly}>
                                                 <SelectTrigger className="bg-white border-slate-300 h-9 text-xs">
                                                     <SelectValue placeholder="Comprehensive" />
                                                 </SelectTrigger>
@@ -781,7 +788,7 @@ export default function WindmillMasterEdit() {
                                                 value={amcHead}
                                                 onChange={(e) => setAmcHead(e.target.value)}
                                                 placeholder="Enter AMC Head"
-                                                disabled={isPosted}
+                                                disabled={isReadOnly}
                                                 className="bg-white border-slate-300 h-9 text-xs"
                                             />
                                         </div>
@@ -791,7 +798,7 @@ export default function WindmillMasterEdit() {
                                                 value={amcHeadContact}
                                                 onChange={(e) => setAmcHeadContact(e.target.value)}
                                                 placeholder="Enter AMC Head Contact"
-                                                disabled={isPosted}
+                                                disabled={isReadOnly}
                                                 className="bg-white border-slate-300 h-9 text-xs"
                                             />
                                         </div>
@@ -801,7 +808,7 @@ export default function WindmillMasterEdit() {
                                                 <PopoverTrigger asChild>
                                                     <Button
                                                         variant={"outline"}
-                                                        disabled={isPosted}
+                                                        disabled={isReadOnly}
                                                         className={cn(
                                                             "w-full justify-start text-left font-normal bg-white border-slate-300 h-9",
                                                             !fromDate && "text-muted-foreground"
@@ -827,7 +834,7 @@ export default function WindmillMasterEdit() {
                                                 <PopoverTrigger asChild>
                                                     <Button
                                                         variant={"outline"}
-                                                        disabled={isPosted}
+                                                        disabled={isReadOnly}
                                                         className={cn(
                                                             "w-full justify-start text-left font-normal bg-white border-slate-300 h-9",
                                                             !toDate && "text-muted-foreground"
@@ -857,7 +864,7 @@ export default function WindmillMasterEdit() {
                                                 value={insurancePolicyNumber}
                                                 onChange={(e) => setInsurancePolicyNumber(e.target.value)}
                                                 placeholder="Enter Insurance Policy Number"
-                                                disabled={isPosted}
+                                                disabled={isReadOnly}
                                                 className="bg-white border-slate-300 h-9 text-xs"
                                             />
                                         </div>
@@ -867,7 +874,7 @@ export default function WindmillMasterEdit() {
                                                 value={insurancePersonName}
                                                 onChange={(e) => setInsurancePersonName(e.target.value)}
                                                 placeholder="Enter Insurance Company Name"
-                                                disabled={isPosted}
+                                                disabled={isReadOnly}
                                                 className="bg-white border-slate-300 h-9 text-xs"
                                             />
                                         </div>
@@ -877,7 +884,7 @@ export default function WindmillMasterEdit() {
                                                 value={insurancePersonPhone}
                                                 onChange={(e) => setInsurancePersonPhone(e.target.value)}
                                                 placeholder="Enter Insurance Company Phone Number"
-                                                disabled={isPosted}
+                                                disabled={isReadOnly}
                                                 className="bg-white border-slate-300 h-9 text-xs"
                                             />
                                         </div>
@@ -887,7 +894,7 @@ export default function WindmillMasterEdit() {
                                                 <PopoverTrigger asChild>
                                                     <Button
                                                         variant={"outline"}
-                                                        disabled={isPosted}
+                                                        disabled={isReadOnly}
                                                         className={cn(
                                                             "w-full justify-start text-left font-normal bg-white border-slate-300 h-9",
                                                             !insuranceFromDate && "text-muted-foreground"
@@ -913,7 +920,7 @@ export default function WindmillMasterEdit() {
                                                 <PopoverTrigger asChild>
                                                     <Button
                                                         variant={"outline"}
-                                                        disabled={isPosted}
+                                                        disabled={isReadOnly}
                                                         className={cn(
                                                             "w-full justify-start text-left font-normal bg-white border-slate-300 h-9",
                                                             !insuranceToDate && "text-muted-foreground"
@@ -943,7 +950,7 @@ export default function WindmillMasterEdit() {
                                                 onChange={(e) => setMinimumLevelGeneration(e.target.value)}
                                                 placeholder="Enter Min Level Generation"
                                                 className="bg-white border-slate-300 h-9 text-xs"
-                                                disabled={isPosted}
+                                                disabled={isReadOnly}
                                             />
                                         </div>
                                         <div className="space-y-1.5">
@@ -980,7 +987,7 @@ export default function WindmillMasterEdit() {
                                                 onChange={(e) => setPortalUrl(e.target.value)}
                                                 placeholder="Enter Website URL"
                                                 className="bg-white border-slate-300 h-9 text-xs"
-                                                disabled={isPosted}
+                                                disabled={isReadOnly}
                                             />
                                         </div>
                                         <div className="space-y-1.5">
@@ -990,7 +997,7 @@ export default function WindmillMasterEdit() {
                                                 onChange={(e) => setPortalUsername(e.target.value)}
                                                 placeholder="Enter Username"
                                                 className="bg-white border-slate-300 h-9 text-xs"
-                                                disabled={isPosted}
+                                                disabled={isReadOnly}
                                             />
                                         </div>
                                         <div className="space-y-1.5">
@@ -1001,7 +1008,7 @@ export default function WindmillMasterEdit() {
                                                 onChange={(e) => setPortalPassword(e.target.value)}
                                                 placeholder="Enter Password"
                                                 className="bg-white border-slate-300 h-9 text-xs"
-                                                disabled={isPosted}
+                                                disabled={isReadOnly}
                                             />
                                         </div>
                                     </div>
@@ -1029,7 +1036,7 @@ export default function WindmillMasterEdit() {
                                                             <Input
                                                                 type="file"
                                                                 onChange={(e) => handleFileChange(item.id, e.target.files ? e.target.files[0] : null)}
-                                                                disabled={isPosted}
+                                                                disabled={isReadOnly}
                                                                 className="bg-white border-slate-300 h-9 text-xs focus:ring-blue-500 file:mr-4 file:py-1 file:px-2 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-violet-50 file:text-violet-700 hover:file:bg-violet-100"
                                                             />
                                                         </td>

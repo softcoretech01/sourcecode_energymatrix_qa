@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+
 import { Search, Edit, Upload, FileText, Scale } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -21,90 +21,155 @@ import {
 import { cn, formatDate } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
+import React, { useState, useEffect } from "react";
 
-// Mock Data matching the screenshot
-const data = [
-    {
-        id: 1,
-        readingDate: "2026-02-18",
-        windmillNumber: "WM-001",
-        customer: "L&T",
-        seNumber: "SC-1001",
-        exportedKwh: "1,200",
-        consumedKwh: "300",
-        unitValueExport: "5",
-        unitValueImport: "4,500", // Net payable in screenshot is last col, 4500. Wait. 300 * ?
-        netPayable: "4,500",
-        status: "Saved",
-    },
-    {
-        id: 2,
-        readingDate: "2026-02-21",
-        windmillNumber: "WM-002",
-        customer: "Texmo",
-        seNumber: "SC-1002",
-        exportedKwh: "1,050",
-        consumedKwh: "290",
-        unitValueExport: "4.80",
-        unitValueImport: "3,624",
-        netPayable: "3,624",
-        status: "Posted",
-    },
-    {
-        id: 3,
-        readingDate: "2026-02-20",
-        windmillNumber: "WM-003",
-        customer: "ABC Energy",
-        seNumber: "SC-1003",
-        exportedKwh: "1,300",
-        consumedKwh: "310",
-        unitValueExport: "5.20",
-        unitValueImport: "5,096",
-        netPayable: "5,096",
-        status: "Saved",
-    },
-];
+import api from "@/services/api";
 
+// ✅ TYPE (based on backend)
+type Actuals = {
+    client_eb_id: any;
+    actual_month: number;
+    actual_year: number;
+    customer_name: string;
+    sc_number: string;
+};
 export default function ActualsList() {
     const navigate = useNavigate();
     const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
     const [selectedMonth, setSelectedMonth] = useState<string>((new Date().getMonth() + 1).toString());
-    const [selectedWm, setSelectedWm] = useState("");
+    
     const [searchKeyword, setSearchKeyword] = useState("");
 
     const [appliedYear, setAppliedYear] = useState<string>(new Date().getFullYear().toString());
     const [appliedMonth, setAppliedMonth] = useState<string>((new Date().getMonth() + 1).toString());
     const [appliedWm, setAppliedWm] = useState("");
+     const [data, setData] = useState<Actuals[]>([]);
+    const [loading, setLoading] = useState(false);
+    const [selectedCustomer, setSelectedCustomer] = useState("");
+const [selectedSc, setSelectedSc] = useState("");
+const [appliedCustomer, setAppliedCustomer] = useState("");
+const [appliedSc, setAppliedSc] = useState("");
+const currentYear = new Date().getFullYear();
+const years: number[] = Array.from({ length: 5 }, (_, i) => currentYear - i);
+const [customers, setCustomers] = useState<string[]>([]);
+const [scNumbers, setScNumbers] = useState<string[]>([]);
+const [isFilterApplied, setIsFilterApplied] = useState(false);
+
+
+
+
+
+    useEffect(() => {
+        fetchActuals();
+    }, []);
+
+
+    useEffect(() => {
+    setSelectedSc(""); // reset SC when customer changes
+
+    if (selectedCustomer) {
+        const filtered = data.filter(
+            (item) => item.customer_name === selectedCustomer
+        );
+
+        const uniqueSc = [...new Set(filtered.map((item) => item.sc_number))];
+        setScNumbers(uniqueSc);
+    } else {
+        setScNumbers([]);
+    }
+}, [selectedCustomer, data]);
+
+
+
+   const fetchActuals = async () => {
+    try {
+        setLoading(true);
+
+        const res = await api.get<Actuals[]>("/actuals/list");
+        const apiData = res.data;
+
+        // ✅ Set main data
+        setData(apiData);
+
+        // ✅ Unique Customers
+        const uniqueCustomers = Array.from(
+            new Set(apiData.map((item) => item.customer_name))
+        );
+        setCustomers(uniqueCustomers);
+
+        // ✅ Unique SC Numbers (ALL SC initially)
+        const uniqueScNumbers = Array.from(
+            new Set(apiData.map((item) => item.sc_number))
+        );
+        setScNumbers(uniqueScNumbers);
+
+    } catch (error) {
+        console.error("API Error:", error);
+    } finally {
+        setLoading(false);
+    }
+};
+
 
     const handleSearch = () => {
-        setAppliedYear(selectedYear);
-        setAppliedMonth(selectedMonth);
-        setAppliedWm(selectedWm);
-    };
+    setAppliedYear(selectedYear);
+    setAppliedMonth(selectedMonth);
+    setAppliedCustomer(selectedCustomer);
+    setAppliedSc(selectedSc);
+    setIsFilterApplied(true); // ✅ apply filter only after click
+};
 
-    const handleCancel = () => {
-        setSelectedYear(currentYear.toString());
-        setSelectedMonth((new Date().getMonth() + 1).toString());
-        setSelectedWm("");
-        setSearchKeyword("");
-        setAppliedYear(currentYear.toString());
-        setAppliedMonth((new Date().getMonth() + 1).toString());
-        setAppliedWm("");
-    };
+const handleCancel = () => {
+    const currentYear = new Date().getFullYear().toString();
+    const currentMonth = (new Date().getMonth() + 1).toString();
 
-    const filteredData = data.filter(row => {
-        const rowDate = new Date(row.readingDate);
-        const matchesYear = rowDate.getFullYear().toString() === appliedYear;
-        const matchesMonth = (rowDate.getMonth() + 1).toString() === appliedMonth;
-        const matchesWm = appliedWm === "" || appliedWm === "all" || row.windmillNumber.toLowerCase() === appliedWm.toLowerCase();
-        const matchesGlobal = searchKeyword === "" ||
-            Object.values(row).some(val => String(val).toLowerCase().includes(searchKeyword.toLowerCase()));
+    setSelectedYear(currentYear);
+    setSelectedMonth(currentMonth);
+    setSelectedCustomer("");
+    setSelectedSc("");
+    setSearchKeyword("");
 
-        return matchesYear && matchesMonth && matchesWm && matchesGlobal;
-    });
+    setAppliedYear(currentYear);
+    setAppliedMonth(currentMonth);
+    setAppliedCustomer("");
+    setAppliedSc("");
 
-    const currentYear = new Date().getFullYear();
-    const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
+    setIsFilterApplied(false); // ✅ show all data again
+};
+
+
+     const filteredData = data.filter((row) => {
+    // ✅ Apply dropdown filters only if search button clicked
+    const matchesYear = !isFilterApplied || row.actual_year.toString() === appliedYear;
+    const matchesMonth = !isFilterApplied || row.actual_month.toString() === appliedMonth;
+
+    const matchesCustomer =
+        !isFilterApplied ||
+        appliedCustomer === "" ||
+        appliedCustomer === "all" ||
+        row.customer_name === appliedCustomer;
+
+    const matchesSc =
+        !isFilterApplied ||
+        appliedSc === "" ||
+        appliedSc === "all" ||
+        row.sc_number === appliedSc;
+
+    // ✅ Keyword search ALWAYS works
+    const matchesSearch =
+        searchKeyword === "" ||
+        Object.values(row).some((val) =>
+            String(val).toLowerCase().includes(searchKeyword.toLowerCase())
+        );
+
+    return (
+        matchesYear &&
+        matchesMonth &&
+        matchesCustomer &&
+        matchesSc &&
+        matchesSearch
+    );
+});
 
     const months = [
         { value: "1", label: "January" },
@@ -127,7 +192,7 @@ export default function ActualsList() {
                 {/* Header */}
                 <div className="p-3 space-y-2">
                     {/* Page Title */}
-                    <div className="flex items-center justify-between pb-1">
+                    <div className="flex items-center justify-between pb-0">
                         <h1 className="text-xl font-bold text-slate-800">Actuals</h1>
                     </div>
 
@@ -135,15 +200,18 @@ export default function ActualsList() {
                     <div className="space-y-1">
                         <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg flex flex-wrap gap-2 items-center">
                             <span className="text-sm font-semibold text-slate-600 mr-2">Search</span>
-                            <Select value={selectedWm} onValueChange={(val) => setSelectedWm(val === "all" ? "" : val)}>
-                                <SelectTrigger className="w-[200px] h-9 bg-white border-slate-300 text-sm">
-                                    <SelectValue placeholder="Select Windmill" />
+                            {/* Customer Dropdown */}
+<Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
+                                <SelectTrigger className="w-[180px] h-9 bg-white border-slate-300 text-sm">
+                                    <SelectValue placeholder="Select Customer" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="all">All Windmills</SelectItem>
-                                    <SelectItem value="wm-001">WM-001</SelectItem>
-                                    <SelectItem value="wm-002">WM-002</SelectItem>
-                                    <SelectItem value="wm-003">WM-003</SelectItem>
+                                    <SelectItem value="all">All Customers</SelectItem>
+                                    {customers.map((cust) => (
+                                        <SelectItem key={cust} value={cust}>
+                                            {cust}
+                                        </SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
 
@@ -198,17 +266,7 @@ export default function ActualsList() {
                             <h2 className="text-sm font-semibold text-primary pl-2">Actuals List</h2>
 
                             <div className="flex items-center gap-4">
-                                {/* Legend */}
-                                <div className="flex gap-3 items-center">
-                                    <div className="flex items-center gap-1.5">
-                                        <Badge className="bg-red-600 hover:bg-red-700 text-white font-bold w-6 h-6 text-[10px] rounded flex items-center justify-center p-0 shadow-sm border-none">S</Badge>
-                                        <span className="text-xs font-medium text-slate-600">Saved</span>
-                                    </div>
-                                    <div className="flex items-center gap-1.5">
-                                        <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold w-6 h-6 text-[10px] rounded flex items-center justify-center p-0 shadow-sm border-none">P</Badge>
-                                        <span className="text-xs font-medium text-slate-600">Posted</span>
-                                    </div>
-                                </div>
+
 
                                 <div className="relative w-64">
                                     <Search className="absolute right-2 top-2.5 h-4 w-4 text-slate-400" />
@@ -225,30 +283,31 @@ export default function ActualsList() {
                         <div className="border border-slate-200 rounded-b-lg overflow-hidden mt-0">
                             <Table>
                                 <TableHeader className="bg-sidebar">
-                                    <TableRow>
-                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap">Month</TableHead>
-                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap">Customer</TableHead>
-                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap">SC Number</TableHead>
-                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap text-center">PDF</TableHead>
-                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap text-center">Auto Reconciled Bill</TableHead>
-
+                                    <TableRow className="h-8">
+                                        <TableHead className="font-semibold text-white py-1 h-8 whitespace-nowrap text-xs">Month</TableHead>
+                                        <TableHead className="font-semibold text-white py-1 h-8 whitespace-nowrap text-xs">Year</TableHead>
+                                        <TableHead className="font-semibold text-white py-1 h-8 whitespace-nowrap text-xs">Customer</TableHead>
+                                        <TableHead className="font-semibold text-white py-1 h-8 whitespace-nowrap text-xs">SC Number</TableHead>
+                                        <TableHead className="font-semibold text-white py-1 h-8 whitespace-nowrap text-xs text-center">PDF</TableHead>
+                                        <TableHead className="font-semibold text-white py-1 h-8 whitespace-nowrap text-xs text-center">Auto Reconciled Bill</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {filteredData.length > 0 ? (
-                                        filteredData.map((row) => (
-                                            <TableRow key={row.id} className="hover:bg-slate-50">
-                                                <TableCell className="py-2 text-sm">{formatDate(new Date(row.readingDate))}</TableCell>
-                                                <TableCell className="py-2 text-sm">{row.customer}</TableCell>
-                                                <TableCell className="py-2 text-sm">{row.seNumber}</TableCell>
-                                                <TableCell className="py-2 text-center">
-                                                    <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50">
-                                                        <FileText className="h-4 w-4" />
+                                        filteredData.map((row,index) => (
+                                            <TableRow key={index} className="hover:bg-slate-50 h-8">
+                                                <TableCell className="py-1 text-xs">{months.find(m => m.value === row.actual_month.toString())?.label}</TableCell>
+                                                <TableCell className="py-1 text-xs">{row.actual_year}</TableCell>
+                                                <TableCell className="py-1 text-xs">{row.customer_name}</TableCell>
+                                                <TableCell className="py-1 text-xs">{row.sc_number}</TableCell>
+                                                <TableCell className="py-1 text-center">
+                                                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => navigate(`/windmill/actuals/pdf/${row.client_eb_id}`)}>
+                                                        <FileText className="h-3.5 w-3.5 text-red-500" />
                                                     </Button>
                                                 </TableCell>
-                                                <TableCell className="py-2 text-center">
-                                                    <Button variant="ghost" size="icon" className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50">
-                                                        <FileText className="h-4 w-4" />
+                                                <TableCell className="py-1 text-center">
+                                                    <Button variant="ghost" size="icon" className="h-6 w-6">
+                                                        <FileText className="h-3.5 w-3.5 text-red-500" />
                                                     </Button>
                                                 </TableCell>
                                             </TableRow>

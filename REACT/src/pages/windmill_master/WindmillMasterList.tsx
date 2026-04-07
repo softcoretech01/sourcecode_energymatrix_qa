@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Search, Plus, Edit } from "lucide-react";
+import { Search, Plus, Edit, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatusSlider } from "@/components/StatusSlider";
@@ -368,12 +368,21 @@ export default function WindmillMasterList() {
                                                         <Button
                                                             variant="ghost"
                                                             size="icon"
-                                                            className={row.is_submitted === 1 ? "h-6 w-6 text-slate-300" : "h-6 w-6 text-primary hover:text-primary hover:bg-primary/10"}
-                                                            onClick={() => navigate(`/master/windmill/edit/${row.id}`)}
-                                                            disabled={row.is_submitted === 1}
+                                                            className="h-6 w-6 text-indigo-600 hover:bg-indigo-50"
+                                                            onClick={() => navigate(`/master/windmill/view/${row.id}`)}
+                                                            title="View"
                                                         >
-                                                            <Edit className="h-4 w-4" />
+                                                            <Eye className="h-4 w-4" />
                                                         </Button>
+                                                        <Button
+                                                             variant="ghost"
+                                                             size="icon"
+                                                             className="h-6 w-6 text-primary hover:text-primary hover:bg-primary/10"
+                                                             onClick={() => navigate(`/master/windmill/edit/${row.id}`)}
+                                                             title="Edit"
+                                                         >
+                                                             <Edit className="h-4 w-4" />
+                                                         </Button>
                                                     </div>
                                                 </TableCell>
                                             </TableRow>

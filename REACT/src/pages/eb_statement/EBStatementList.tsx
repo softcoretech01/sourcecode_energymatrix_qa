@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Search as SearchIcon, FileText, Scale } from "lucide-react";
+import { Search as SearchIcon, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,8 @@ interface EBStatement {
     windmill_number: string;
     pdf: string;
     is_submitted: number;
+    created_at: string;
+    created_by: number | string;
 }
 
 interface Windmill {
@@ -209,47 +211,51 @@ export default function EBStatementList() {
                             <Table>
                                 <TableHeader className="bg-sidebar">
                                     <TableRow>
-                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap">Month</TableHead>
-                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap">Windmill Number</TableHead>
-                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap text-center">PDF</TableHead>
-                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap text-center">Comparison Charges</TableHead>
+                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap w-1/6">Year</TableHead>
+                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap w-1/6">Month</TableHead>
+                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap w-1/6">Windmill Number</TableHead>
+                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap text-center w-1/6">PDF</TableHead>
+                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap w-1/6">Submitted Date and Time</TableHead>
+                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap w-1/6">Submitted By</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {loading ? (
                                         <TableRow>
-                                            <TableCell colSpan={4} className="text-center py-10 text-slate-500">
+                                            <TableCell colSpan={6} className="text-center py-10 text-slate-500">
                                                 Loading EB Statements...
                                             </TableCell>
                                         </TableRow>
                                     ) : statements.length > 0 ? (
                                         statements.map((row) => (
                                             <TableRow key={row.id} className="hover:bg-slate-50">
-                                                <TableCell className="py-2 text-sm">{row.month}</TableCell>
-                                                <TableCell className="py-2 text-sm">{row.windmill_number}</TableCell>
-                                                <TableCell className="py-2 text-center">
+                                                <TableCell className="py-2 text-sm w-1/6">{row.created_at ? format(new Date(row.created_at), "yyyy") : "-"}</TableCell>
+                                                <TableCell className="py-2 text-sm w-1/6">{row.month}</TableCell>
+                                                <TableCell className="py-2 text-sm w-1/6">{row.windmill_number}</TableCell>
+                                                <TableCell className="py-2 text-center w-1/6">
                                                     <Button 
                                                         variant="ghost" 
                                                         size="icon" 
                                                         className="h-6 w-6 text-red-500 hover:text-red-700 hover:bg-red-50"
                                                         onClick={() => {
                                                             const filename = row.pdf.split(/[\\/]/).pop();
-                                                            window.open(`/eb-statement/pdf?file=${filename}`, "_blank");
+                                                            navigate(`/eb-statement/pdf?file=${filename}`);
                                                         }}
                                                     >
                                                         <FileText className="h-4 w-4" />
                                                     </Button>
                                                 </TableCell>
-                                                <TableCell className="py-2 text-center">
-                                                    <Button variant="ghost" size="icon" className="h-6 w-6 text-blue-500 hover:text-blue-700 hover:bg-blue-50">
-                                                        <Scale className="h-4 w-4" />
-                                                    </Button>
+                                                <TableCell className="py-2 text-sm w-1/6">
+                                                    {row.created_at ? format(new Date(row.created_at), "dd MMM yyyy") + " : " + format(new Date(row.created_at), "hh:mm a") : "-"}
+                                                </TableCell>
+                                                <TableCell className="py-2 text-sm w-1/6">
+                                                    {row.created_by || "-"}
                                                 </TableCell>
                                             </TableRow>
                                         ))
                                     ) : (
                                         <TableRow>
-                                            <TableCell colSpan={5} className="text-center py-10 text-slate-500">
+                                            <TableCell colSpan={6} className="text-center py-10 text-slate-500">
                                                 No EB Statements found.
                                             </TableCell>
                                         </TableRow>

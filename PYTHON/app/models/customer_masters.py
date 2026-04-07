@@ -85,11 +85,12 @@ class CustomerService(Base):
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     customer_id = Column(Integer)
-    service_number = Column(BigInteger)
+    service_number = Column(String(20))
     kva_id = Column(Integer)
     edc_circle_id = Column(Integer)
     status = Column(String(1)) # binary(1)
     remarks = Column(String(50))
+    per_cost_unit = Column(DECIMAL(10, 2), nullable=True)
     
     created_by = Column(Integer)
     created_at = Column(DateTime)

@@ -31,7 +31,7 @@ export default function ConsumptionRequest() {
     const [data, setData] = useState(requestData);
     const [dirtyFields, setDirtyFields] = useState<{ [key: string]: boolean }>({});
     const [modifiedServiceIds, setModifiedServiceIds] = useState<Set<number>>(new Set());
-    
+
     // API data
     const [customers, setCustomers] = useState<any[]>([]);
     const [selectedCustomer, setSelectedCustomer] = useState<string>("");
@@ -77,14 +77,16 @@ export default function ConsumptionRequest() {
                 },
             });
             if (res.ok) {
-                const data = await res.json();
-                console.log("Fetched List:", data);
-                if (Array.isArray(data) && data.length > 0) {
-                    setData(data); // Use real data if available
+                const fetchedData = await res.json();
+                console.log("Fetched List:", fetchedData);
+                // Always update data, even if empty, to reflect the selected period correctly
+                if (Array.isArray(fetchedData)) {
+                    setData(fetchedData);
                 } else {
-                    // If no data for this period, we could show empty or fallback
-                    // setData([]); 
+                    setData([]);
                 }
+            } else {
+                setData([]);
             }
         } catch (err) {
             console.error("Failed to load request list", err);
@@ -100,19 +102,33 @@ export default function ConsumptionRequest() {
         setDirtyFields(prev => ({ ...prev, [`${serviceId}-${field}`]: false }));
     };
 
-    const handleValueChange = (serviceId: number, field: string, value: string) => {
-        // Allow numeric input and decimals
-        if (!/^\d*\.?\d*$/.test(value)) return;
+    const handleValueChange = (serviceId: any, field: string, value: string) => {
+        // Allow numeric input with format: max 6 digits, 2 decimals (e.g., 999999.99)
+        if (value === '') {
+            const idNum = Number(serviceId);
+            setData(prevData => prevData.map(row =>
+                Number(row.service_id) === idNum ? { ...row, [field]: value } : row
+            ));
+            return;
+        }
+        
+        if (!/^\d{0,6}(\.\d{0,2})?$/.test(value)) return;
 
-        setData(prevData => prevData.map(row => 
-            row.service_id === serviceId ? { ...row, [field]: value } : row
+        const idNum = Number(serviceId);
+        setData(prevData => prevData.map(row =>
+            Number(row.service_id) === idNum ? { ...row, [field]: value } : row
         ));
-        setDirtyFields(prev => ({ ...prev, [`${serviceId}-${field}`]: true }));
-        setModifiedServiceIds(prev => new Set(prev).add(serviceId));
+        setDirtyFields(prev => ({ ...prev, [`${idNum}-${field}`]: true }));
+        setModifiedServiceIds(prev => {
+            const next = new Set(prev);
+            next.add(idNum);
+            return next;
+        });
     };
 
-    const handleBlur = (serviceId: number, field: string, value: string) => {
-        const key = `${serviceId}-${field}`;
+    const handleBlur = (serviceId: any, field: string, value: string) => {
+        const idNum = Number(serviceId);
+        const key = `${idNum}-${field}`;
         if (!dirtyFields[key]) return; // Didn't change during this focus
 
         if (!value || isNaN(Number(value))) return;
@@ -122,8 +138,8 @@ export default function ConsumptionRequest() {
 
         const formattedValue = increasedValue.toFixed(2).replace(/\.00$/, '');
 
-        setData(prevData => prevData.map(row => 
-            row.service_id === serviceId ? { ...row, [field]: formattedValue } : row
+        setData(prevData => prevData.map(row =>
+            Number(row.service_id) === idNum ? { ...row, [field]: formattedValue } : row
         ));
         setDirtyFields(prev => ({ ...prev, [key]: false }));
     };
@@ -203,13 +219,15 @@ export default function ConsumptionRequest() {
     const handleSave = async () => {
         try {
             const token = localStorage.getItem("access_token");
+            const modifiedRows = data.filter(row => modifiedServiceIds.has(Number(row.service_id)));
+            console.log("Modified IDs in Set:", Array.from(modifiedServiceIds));
+            console.log("Requests found to save:", modifiedRows.length);
+
             const payload = {
                 year: parseInt(selectedYear),
                 month: parseInt(selectedMonth),
                 day: new Date().getDate(),
-                requests: data
-                    .filter(row => modifiedServiceIds.has(row.service_id))
-                    .map(row => ({
+                requests: modifiedRows.map(row => ({
                         customer_id: row.customer_id,
                         service_id: row.service_id,
                         c1: Number(row.c1) || 0,
@@ -269,8 +287,12 @@ export default function ConsumptionRequest() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value="all">All Customers</SelectItem>
-                                    {Array.from(new Set(customers.map(c => c.customer_name))).map(name => (
-                                        <SelectItem key={name} value={name}>{name}</SelectItem>
+                                    {Array.from(
+                                        new Map(customers.map(c => [c.customer_id, c])).values()
+                                    ).map(c => (
+                                        <SelectItem key={c.customer_id} value={c.customer_name}>
+                                            {c.customer_name}
+                                        </SelectItem>
                                     ))}
                                 </SelectContent>
                             </Select>
@@ -305,8 +327,8 @@ export default function ConsumptionRequest() {
 
                             <div className="flex-1"></div>
 
-                            <Button 
-                                size="sm" 
+                            <Button
+                                size="sm"
                                 className="h-9 text-sm bg-primary hover:bg-primary/90 text-primary-foreground px-4"
                                 onClick={handleSearch}
                             >
@@ -368,8 +390,7 @@ export default function ConsumptionRequest() {
                                             <TableCell className="py-2 text-sm text-slate-700">{row.sc_number}</TableCell>
                                             <TableCell className="py-2 p-1">
                                                 <Input
-                                                    disabled={!isEditing}
-                                                    className="h-8 text-right text-sm border-slate-200 shadow-none focus-visible:ring-1 bg-white disabled:bg-slate-50 disabled:text-slate-500"
+                                                    className="h-8 text-right text-sm border-slate-200 shadow-none focus-visible:ring-1 bg-white"
                                                     value={row.c1}
                                                     onFocus={() => handleFocus(row.service_id, 'c1')}
                                                     onBlur={(e) => handleBlur(row.service_id, 'c1', e.target.value)}
@@ -378,8 +399,7 @@ export default function ConsumptionRequest() {
                                             </TableCell>
                                             <TableCell className="py-2 p-1">
                                                 <Input
-                                                    disabled={!isEditing}
-                                                    className="h-8 text-right text-sm border-slate-200 shadow-none focus-visible:ring-1 bg-white disabled:bg-slate-50 disabled:text-slate-500"
+                                                    className="h-8 text-right text-sm border-slate-200 shadow-none focus-visible:ring-1 bg-white"
                                                     value={row.c2}
                                                     onFocus={() => handleFocus(row.service_id, 'c2')}
                                                     onBlur={(e) => handleBlur(row.service_id, 'c2', e.target.value)}
@@ -389,8 +409,7 @@ export default function ConsumptionRequest() {
 
                                             <TableCell className="py-2 p-1">
                                                 <Input
-                                                    disabled={!isEditing}
-                                                    className="h-8 text-right text-sm border-slate-200 shadow-none focus-visible:ring-1 bg-white disabled:bg-slate-50 disabled:text-slate-500"
+                                                    className="h-8 text-right text-sm border-slate-200 shadow-none focus-visible:ring-1 bg-white"
                                                     value={row.c4}
                                                     onFocus={() => handleFocus(row.service_id, 'c4')}
                                                     onBlur={(e) => handleBlur(row.service_id, 'c4', e.target.value)}
@@ -399,8 +418,7 @@ export default function ConsumptionRequest() {
                                             </TableCell>
                                             <TableCell className="py-2 p-1">
                                                 <Input
-                                                    disabled={!isEditing}
-                                                    className="h-8 text-right text-sm border-slate-200 shadow-none focus-visible:ring-1 bg-white disabled:bg-slate-50 disabled:text-slate-500"
+                                                    className="h-8 text-right text-sm border-slate-200 shadow-none focus-visible:ring-1 bg-white"
                                                     value={row.c5}
                                                     onFocus={() => handleFocus(row.service_id, 'c5')}
                                                     onBlur={(e) => handleBlur(row.service_id, 'c5', e.target.value)}

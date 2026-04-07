@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Search, Edit, Trash2, Upload, FileText, Scale } from "lucide-react";
+import { Search, Edit, Trash2, Upload, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -309,18 +309,37 @@ export default function EBStatementSolarList() {
                             <Table>
                                 <TableHeader className="bg-sidebar">
                                     <TableRow>
-                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap">Month</TableHead>
-                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap">Solar Number</TableHead>
-                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap text-center">PDF</TableHead>
-                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap text-center">Comparison Charges</TableHead>
+                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap w-1/6 pl-6">Year</TableHead>
+                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap w-1/6">Month</TableHead>
+                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap w-1/6">Solar Number</TableHead>
+                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap text-center w-1/6">PDF</TableHead>
+                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap w-1/6">Submitted Date and Time</TableHead>
+                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap w-1/6">Submitted By</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
+                                    {rows.length === 0 && !loading && (
+                                        <TableRow>
+                                            <TableCell colSpan={6} className="text-center py-4 text-slate-500">
+                                                No EB Statement Solar records found
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                    {loading && (
+                                        <TableRow>
+                                            <TableCell colSpan={6} className="text-center py-4 text-slate-500">
+                                                Loading...
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
                                     {rows.map((row) => (
                                         <TableRow key={row.id} className="hover:bg-slate-50">
-                                            <TableCell className="py-2 text-sm">{row.month || row.year || "-"}</TableCell>
-                                            <TableCell className="py-2 text-sm">{row.solar_number || row.solar_id || "-"}</TableCell>
-                                            <TableCell className="py-2 text-center">
+                                            <TableCell className="py-2 text-sm font-medium w-1/6 pl-6">
+                                                {row.created_at ? format(new Date(row.created_at), "yyyy") : "-"}
+                                            </TableCell>
+                                            <TableCell className="py-2 text-sm w-1/6">{row.month || "-"}</TableCell>
+                                            <TableCell className="py-2 text-sm w-1/6">{row.solar_number || row.solar_id || "-"}</TableCell>
+                                            <TableCell className="py-2 text-center w-1/6">
                                                 {(() => {
                                                     const pdfPath = row.pdf_file_path || row.pdf || "";
                                                     const filename = pdfPath ? pdfPath.split("/").pop() : "Not available";
@@ -340,11 +359,13 @@ export default function EBStatementSolarList() {
                                                         if (row.year != null) sessionStorage.setItem("ebStatementSolarYear", String(row.year));
 
                                                         try {
-                                                            const res = await fetch(`${BACKEND_API_URL}/eb-solar/read-metadata?filename=${encodeURIComponent(pdfPath)}`);
-                                                            if (res.ok) {
-                                                                const json = await res.json();
-                                                                if (json && json.parsed) {
-                                                                    sessionStorage.setItem("ebStatementSolarData", JSON.stringify(json.parsed));
+                                                            const res = await api.get(`/eb-solar/read-metadata`, {
+                                                                params: { filename: pdfPath }
+                                                            });
+                                                            if (res.status === 200 && res.data && res.data.parsed) {
+                                                                sessionStorage.setItem("ebStatementSolarData", JSON.stringify(res.data.parsed));
+                                                                if (res.data.header_id) {
+                                                                    sessionStorage.setItem("ebStatementSolarHeaderId", String(res.data.header_id));
                                                                 }
                                                             }
                                                         } catch (err) {
@@ -367,12 +388,10 @@ export default function EBStatementSolarList() {
                                                     );
                                                 })()}
                                             </TableCell>
-                                            <TableCell className="py-2 text-center">
-                                                <Button variant="ghost" size="icon" className="h-6 w-6 text-blue-500 hover:text-blue-700 hover:bg-blue-50">
-                                                    <Scale className="h-4 w-4" />
-                                                </Button>
+                                            <TableCell className="py-2 text-sm w-1/6">
+                                                {row.created_at ? format(new Date(row.created_at), "dd MMM yyyy") + " : " + format(new Date(row.created_at), "hh:mm a") : "-"}
                                             </TableCell>
-
+                                            <TableCell className="py-2 text-sm w-1/6">{row.created_by || "-"}</TableCell>
                                         </TableRow>
                                     ))}
                                 </TableBody>

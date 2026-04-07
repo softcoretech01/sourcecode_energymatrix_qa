@@ -3,7 +3,7 @@ from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import jwt
 
-SECRET_KEY = "secret123"
+SECRET_KEY = "c89d5f76b3a2e1d0f8c7b6a5d4e3f2b1a0c9d8e7f6b5a4d3e2f1c0b9a8d7e6f5"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 

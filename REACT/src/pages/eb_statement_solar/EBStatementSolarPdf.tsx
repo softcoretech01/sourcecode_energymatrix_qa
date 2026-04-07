@@ -1,11 +1,11 @@
-﻿import React, { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { BACKEND_API_URL } from "@/services/api";
+import api, { BACKEND_API_URL } from "@/services/api";
 import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, FileText, Info, Briefcase, Zap, Calculator, Loader2, Hash } from "lucide-react";
+import { ArrowLeft, FileText, Info, Briefcase, Zap, Calculator, Loader2, Hash, Calendar } from "lucide-react";
 
 type SolarSlots = {
     C1?: string;
@@ -72,16 +72,19 @@ export default function EBStatementSolarPdf() {
             if (!savedSolarFile) return;
 
             try {
-                const res = await fetch(`${BACKEND_API_URL}/eb-solar/read-metadata?filename=${encodeURIComponent(savedSolarFile)}`);
-                if (!res.ok) return;
-                const json = await res.json();
-                if (json && json.header_id) {
-                    setSolarHeaderId(Number(json.header_id));
-                    sessionStorage.setItem("ebStatementSolarHeaderId", String(json.header_id));
-                }
-                if (json && json.parsed) {
-                    setData(json.parsed);
-                    sessionStorage.setItem("ebStatementSolarData", JSON.stringify(json.parsed));
+                const res = await api.get(`/eb-solar/read-metadata`, {
+                    params: { filename: savedSolarFile }
+                });
+                if (res.status === 200 && res.data) {
+                    const json = res.data;
+                    if (json.header_id) {
+                        setSolarHeaderId(Number(json.header_id));
+                        sessionStorage.setItem("ebStatementSolarHeaderId", String(json.header_id));
+                    }
+                    if (json.parsed) {
+                        setData(json.parsed);
+                        sessionStorage.setItem("ebStatementSolarData", JSON.stringify(json.parsed));
+                    }
                 }
             } catch (e) {
                 console.warn("Failed to resolve solar header ID from metadata", e);
@@ -122,14 +125,13 @@ export default function EBStatementSolarPdf() {
         let resolvedHeaderId = solarHeaderId;
         if ((!resolvedHeaderId || resolvedHeaderId <= 0) && solarFile) {
             try {
-                const res = await fetch(`${BACKEND_API_URL}/eb-solar/read-metadata?filename=${encodeURIComponent(solarFile)}`);
-                if (res.ok) {
-                    const json = await res.json();
-                    if (json?.header_id) {
-                        resolvedHeaderId = Number(json.header_id);
-                        setSolarHeaderId(resolvedHeaderId);
-                        sessionStorage.setItem("ebStatementSolarHeaderId", String(resolvedHeaderId));
-                    }
+                const res = await api.get(`/eb-solar/read-metadata`, {
+                    params: { filename: solarFile }
+                });
+                if (res.status === 200 && res.data?.header_id) {
+                    resolvedHeaderId = Number(res.data.header_id);
+                    setSolarHeaderId(resolvedHeaderId);
+                    sessionStorage.setItem("ebStatementSolarHeaderId", String(resolvedHeaderId));
                 }
             } catch (e) {
                 console.warn("Could not resolve solar header id before save", e);
@@ -159,17 +161,9 @@ export default function EBStatementSolarPdf() {
                 charges: data.charges ? data.charges.map((c) => ({ name: c.name, amount: parseNumber(c.amount), code: "" })) : [],
             };
 
-            const res = await fetch(`${BACKEND_API_URL}/eb-solar/save-details`, {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    ...(localStorage.getItem("access_token") ? { Authorization: `Bearer ${localStorage.getItem("access_token")}` } : {}),
-                },
-                body: JSON.stringify(payload),
-            });
+            const res = await api.post(`/eb-solar/save-details`, payload);
 
-            const result = await res.json();
-            if (!res.ok) throw new Error(result.detail || result.message || "Save failed");
+            if (res.status !== 200) throw new Error(res.data?.detail || res.data?.message || "Save failed");
 
             setSaved(true);
             toast.success("Solar EB statement saved to database successfully.");
@@ -251,18 +245,24 @@ export default function EBStatementSolarPdf() {
                         <CardTitle className="text-lg">Header Information</CardTitle>
                     </CardHeader>
                     <CardContent className="pt-4">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <div className="flex justify-between border-b pb-2 md:border-b-0 md:border-r md:pr-4">
-                                <span className="flex items-center text-sm font-medium text-slate-500">
-                                    <Briefcase className="mr-2 h-4 w-4" /> Company Name
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="flex flex-col space-y-1">
+                                <span className="flex items-center text-xs font-medium text-slate-500 uppercase tracking-wider">
+                                    <Briefcase className="mr-2 h-3.5 w-3.5" /> Company Name
                                 </span>
-                                <span className="text-sm font-semibold">{data.company_name || "N/A"}</span>
+                                <span className="text-sm font-bold text-slate-800 break-words">{data.company_name || "N/A"}</span>
                             </div>
-                            <div className="flex justify-between pb-2 md:pb-0 md:pl-4">
-                                <span className="flex items-center text-sm font-medium text-slate-500">
-                                    <Hash className="mr-2 h-4 w-4" /> Solar Number
+                            <div className="flex flex-col space-y-1 md:border-x md:px-6">
+                                <span className="flex items-center text-xs font-medium text-slate-500 uppercase tracking-wider">
+                                    <Hash className="mr-2 h-3.5 w-3.5" /> Solar Number
                                 </span>
-                                <span className="text-sm font-semibold font-mono text-blue-700">{data.windmill_number || "N/A"}</span>
+                                <span className="text-sm font-bold font-mono" style={{ color: 'firebrick' }}>{data.windmill_number || "N/A"}</span>
+                            </div>
+                            <div className="flex flex-col space-y-1">
+                                <span className="flex items-center text-xs font-medium text-slate-500 uppercase tracking-wider">
+                                    <Calendar className="mr-2 h-3.5 w-3.5" /> Month / Year
+                                </span>
+                                <span className="text-sm font-bold text-slate-800">{(data as any).month || "N/A"} / {(data as any).year || "N/A"}</span>
                             </div>
                         </div>
                     </CardContent>

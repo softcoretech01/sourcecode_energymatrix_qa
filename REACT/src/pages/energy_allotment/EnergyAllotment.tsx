@@ -1,9 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import api from "@/services/api";
 import { useSidebar } from "@/components/ui/sidebar";
 import { Search, Edit, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import {
     Select,
     SelectContent,
@@ -23,15 +25,9 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const allotmentData = [
-    { wm: "WM-001", customer: "L&T", seNumber: "SC-1001", consumption: "600", c1: "250", c1_pp: "300", c1_bank: "110", c2: "100", c2_pp: "150", c2_bank: "50", c4: "75", c4_pp: "100", c4_bank: "40", c5: "50", c5_pp: "80", c5_bank: "30", c1_allot: "0", c2_allot: "0", c4_allot: "0", c5_allot: "0" },
-    { wm: "WM-002", customer: "Texmo", seNumber: "SC-2001", consumption: "525", c1: "200", c1_pp: "300", c1_bank: "120", c2: "90", c2_pp: "120", c2_bank: "40", c4: "70", c4_pp: "100", c4_bank: "30", c5: "45", c5_pp: "80", c5_bank: "20", c1_allot: "0", c2_allot: "0", c4_allot: "0", c5_allot: "0" },
-    { wm: "WM-003", customer: "L&T", seNumber: "SC-1002", consumption: "450", c1: "150", c1_pp: "200", c1_bank: "80", c2: "80", c2_pp: "120", c2_bank: "40", c4: "60", c4_pp: "90", c4_bank: "30", c5: "40", c5_pp: "70", c5_bank: "20", c1_allot: "0", c2_allot: "0", c4_allot: "0", c5_allot: "0" },
-    { wm: "WM-004", customer: "Texmo", seNumber: "SC-2002", consumption: "400", c1: "120", c1_pp: "180", c1_bank: "70", c2: "70", c2_pp: "100", c2_bank: "30", c4: "50", c4_pp: "80", c4_bank: "20", c5: "35", c5_pp: "60", c5_bank: "15", c1_allot: "0", c2_allot: "0", c4_allot: "0", c5_allot: "0" },
-    { wm: "WM-005", customer: "L&T", seNumber: "SC-1004", consumption: "500", c1: "180", c1_pp: "250", c1_bank: "90", c2: "85", c2_pp: "130", c2_bank: "45", c4: "65", c4_pp: "100", c4_bank: "35", c5: "45", c5_pp: "75", c5_bank: "25", c1_allot: "0", c2_allot: "0", c4_allot: "0", c5_allot: "0" },
-    { wm: "WM-006", customer: "Texmo", seNumber: "SC-2003", consumption: "480", c1: "160", c1_pp: "220", c1_bank: "85", c2: "75", c2_pp: "115", c2_bank: "35", c4: "55", c4_pp: "90", c4_bank: "25", c5: "40", c5_pp: "70", c5_bank: "20", c1_allot: "0", c2_allot: "0", c4_allot: "0", c5_allot: "0" },
-    { wm: "WM-007", customer: "L&T", seNumber: "SC-1001", consumption: "550", c1: "210", c1_pp: "280", c1_bank: "95", c2: "95", c2_pp: "140", c2_bank: "55", c4: "70", c4_pp: "110", c4_bank: "45", c5: "50", c5_pp: "85", c5_bank: "35", c1_allot: "0", c2_allot: "0", c4_allot: "0", c5_allot: "0" },
-    { wm: "WM-008", customer: "Texmo", seNumber: "SC-2005", consumption: "620", c1: "240", c1_pp: "310", c1_bank: "110", c2: "105", c2_pp: "160", c2_bank: "60", c4: "80", c4_pp: "120", c4_bank: "50", c5: "55", c5_pp: "95", c5_bank: "40", c1_allot: "0", c2_allot: "0", c4_allot: "0", c5_allot: "0" },
-    { wm: "SOLAR-001", customer: "L&T", seNumber: "SC-1002", consumption: "420", c1: "140", c1_pp: "200", c1_bank: "75", c2: "65", c2_pp: "100", c2_bank: "35", c4: "45", c4_pp: "75", c4_bank: "25", c5: "30", c5_pp: "55", c5_bank: "15", c1_allot: "0", c2_allot: "0", c4_allot: "0", c5_allot: "0" }
+    { wm: "039224391798", customer: "L&T", seNumber: "SC-1001", consumption: "600", c1: "250", c1_pp: "300", c1_bank: "110", c2: "100", c2_pp: "150", c2_bank: "50", c4: "75", c4_pp: "100", c4_bank: "40", c5: "50", c5_pp: "80", c5_bank: "30", c1_allot: "0", c2_allot: "0", c4_allot: "0", c5_allot: "0" },
+    { wm: "039214391145", customer: "Texmo", seNumber: "SC-2001", consumption: "525", c1: "200", c1_pp: "300", c1_bank: "120", c2: "90", c2_pp: "120", c2_bank: "40", c4: "70", c4_pp: "100", c4_bank: "30", c5: "45", c5_pp: "80", c5_bank: "20", c1_allot: "0", c2_allot: "0", c4_allot: "0", c5_allot: "0" },
+    { wm: "059514500104", customer: "L&T", seNumber: "SC-1002", consumption: "450", c1: "150", c1_pp: "200", c1_bank: "80", c2: "80", c2_pp: "120", c2_bank: "40", c4: "60", c4_pp: "90", c4_bank: "30", c5: "40", c5_pp: "70", c5_bank: "20", c1_allot: "0", c2_allot: "0", c4_allot: "0", c5_allot: "0" },
 ];
 
 // Charge lookup: charges keyed by "customer|seNumber"
@@ -67,7 +63,7 @@ const initialSolarData = [
     { customer: "Texmo", seNumber: "SC-2005" },
 ];
 
-const windmillNumbers = ["WM-001", "WM-002", "WM-003", "WM-004", "WM-005", "WM-006", "WM-007", "WM-008"];
+
 
 type ChargeRow = {
     windmill: string;
@@ -83,11 +79,7 @@ type SolarRow = {
     mrc: number; omc: number; trc: number; oc1: number; kp: number; ec: number; shc: number; other: number; dc: number;
 };
 
-const createEmptyChargeRows = (): ChargeRow[] =>
-    windmillNumbers.map(wm => ({
-        windmill: wm, customer: "", seNumber: "",
-        mrc: 0, omc: 0, trc: 0, oc1: 0, kp: 0, ec: 0, shc: 0, other: 0, dc: 0,
-    }));
+
 
 const createInitialSolarRows = (): SolarRow[] =>
     initialSolarData.map(data => ({
@@ -106,27 +98,215 @@ export default function EnergyAllotment() {
     const [selectedMonth, setSelectedMonth] = useState<string>((new Date().getMonth() + 1).toString());
     const [searchKeyword, setSearchKeyword] = useState("");
     const [isEditing, setIsEditing] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
 
     // State for Uploads
     const [uploads, setUploads] = useState<Record<string, { file: File | null, fileName: string }>>({});
 
-    const handleFileUpload = (wm: string, file: File | null) => {
+    const handleFileUpload = async (wm: string, file: File | null) => {
+        if (!file) {
+            setUploads(prev => ({ ...prev, [wm]: { file: null, fileName: "" } }));
+            return;
+        }
+        
+        // Update local file state immediately for UI
         setUploads(prev => ({
             ...prev,
-            [wm]: { file, fileName: file ? file.name : "" }
+            [wm]: { file, fileName: file.name }
         }));
+
+        // Automatically upload to the backend and fetch extracted data
+        const windmillObj = windmillsDetailed.find(w => w.windmill_number === wm);
+        if (!windmillObj) {
+            toast.error(`Windmill ID not found for ${wm}`);
+            return;
+        }
+
+        try {
+            toast.info(`Uploading EB Statement for ${wm}...`);
+            const formData = new FormData();
+            formData.append("windmill_id", windmillObj.id.toString());
+            formData.append("year", selectedYear);
+            formData.append("month", selectedMonth);
+            formData.append("file", file);
+
+            const response = await api.post("/eb/upload", formData, {
+                headers: { "Content-Type": "multipart/form-data" }
+            });
+
+            if (response.data && response.data.parsed_data) {
+                const parsed = response.data.parsed_data;
+                toast.success(`Successfully uploaded and extracted data for ${wm}!`);
+                
+                // Update the grid values instantly
+                setEbSummaryData(prev => ({
+                    ...prev,
+                    [wm]: {
+                        ...prev[wm],
+                        c1_pp: parsed.slots?.C1 || "0",
+                        c1_bank: parsed.banking_slots?.C1 || "0",
+                        c2_pp: parsed.slots?.C2 || "0",
+                        c2_bank: parsed.banking_slots?.C2 || "0",
+                        c4_pp: parsed.slots?.C4 || "0",
+                        c4_bank: parsed.banking_slots?.C4 || "0",
+                        c5_pp: parsed.slots?.C5 || "0",
+                        c5_bank: parsed.banking_slots?.C5 || "0",
+                    }
+                }));
+
+                // Auto-save the details using the header_id returned by upload
+                if (response.data.header_id) {
+                    try {
+                        const detailsPayload = {
+                            eb_header_id: response.data.header_id,
+                            slots: parsed.slots,
+                            banking_slots: parsed.banking_slots,
+                            banking_units: parsed.banking_units || "0",
+                            charges: parsed.charges || []
+                        };
+                        await api.post("/eb/save-all", detailsPayload);
+                        console.log(`Auto-saved EB statement details for ${wm}`);
+                    } catch (e) {
+                        console.error("Failed to auto-save EB details:", e);
+                    }
+                }
+            }
+        } catch (error: any) {
+            console.error("Upload error:", error);
+            const errMsg = error.response?.data?.detail || "Failed to upload file.";
+            toast.error(errMsg);
+        }
     };
 
     // State for Charge Allocation (8 windmills)
 
-    // State for Charge Allocation (8 windmills)
-    const [chargeAllocationRows, setChargeAllocationRows] = useState<ChargeRow[]>(createEmptyChargeRows());
+    // State for Dynamic Windmill Headers
+    const [windmillNumbers, setWindmillNumbers] = useState<string[]>(["WM-001", "WM-002", "WM-003", "WM-004", "WM-005", "WM-006", "WM-007", "WM-008", "SOLAR-001"]);
+    const [windmillsDetailed, setWindmillsDetailed] = useState<any[]>([]);
+
+    useEffect(() => {
+        const fetchWindmills = async () => {
+            try {
+                const response = await api.get("/windmills/active-posted");
+                if (Array.isArray(response.data)) {
+                    const numbers = response.data.map((item: any) => item.windmill_number).filter(Boolean);
+                    if (numbers.length > 0) {
+                        setWindmillNumbers(numbers);
+                        setWindmillsDetailed(response.data);
+                        toast.success(`Fetched ${numbers.length} active windmills.`);
+                    } else {
+                        toast.warning("No active windmills found.");
+                    }
+                } else {
+                    toast.error("Unexpected response format from server.");
+                }
+            } catch (error) {
+                console.error("Error fetching windmills:", error);
+                toast.error("Failed to connect to server for windmill headers.");
+            }
+        };
+        fetchWindmills();
+    }, []);
+
+    // State for Charge Allocation
+    const [chargeAllocationRows, setChargeAllocationRows] = useState<ChargeRow[]>([]);
+
+    useEffect(() => {
+        setChargeAllocationRows(windmillNumbers.map(wm => ({
+            windmill: wm, customer: "", seNumber: "",
+            mrc: 0, omc: 0, trc: 0, oc1: 0, kp: 0, ec: 0, shc: 0, other: 0, dc: 0,
+        })));
+    }, [windmillNumbers]);
 
     // State for Solar Allocation
     const [solarAllocationRows, setSolarAllocationRows] = useState<SolarRow[]>(createInitialSolarRows());
 
     // State for Energy Allotment List
     const [energyAllotmentData, setEnergyAllotmentData] = useState<(typeof allotmentData[0] & Record<string, any>)[]>(allotmentData);
+    const [consumptionRequests, setConsumptionRequests] = useState<any[]>([]);
+    const [ebSummaryData, setEbSummaryData] = useState<Record<string, any>>({});
+
+    useEffect(() => {
+        const fetchConsumption = async () => {
+            try {
+                const response = await api.get(`/consumption-request/list?year=${selectedYear}&month=${selectedMonth}`);
+                if (Array.isArray(response.data)) {
+                    setConsumptionRequests(response.data);
+                }
+            } catch (error) {
+                console.error("Error fetching consumption requests:", error);
+            }
+        };
+        fetchConsumption();
+    }, [selectedYear, selectedMonth]);
+
+    useEffect(() => {
+        const fetchCustomers = async () => {
+            try {
+                console.log("🔵 Fetching customers for energy allotment...");
+                
+                // Use the new endpoint that includes customer IDs
+                const response = await api.get("/customers/for-energy-allotment");
+                console.log("🔵 Raw API response:", response.data);
+                console.log("🔵 Response type:", typeof response.data, " | Is Array:", Array.isArray(response.data));
+                
+                if (Array.isArray(response.data) && response.data.length > 0) {
+                    console.log(`🔵 Received ${response.data.length} records`);
+                    
+                    const firstItem = response.data[0];
+                    console.log("🔍 First record:", firstItem);
+                    console.log("🔍 First record keys:", Object.keys(firstItem));
+                    console.log("🔍 First record ID:", firstItem.id, "Type:", typeof firstItem.id);
+                    
+                    // Log all records to check ID population
+                    response.data.forEach((item, idx) => {
+                        console.log(`  [${idx}] ${item.customer_name} - ID: ${item.id} SE: ${item.service_number}`);
+                    });
+                    
+                    // Create formatted data
+                    const formattedData = response.data.map((item, idx) => {
+                        // The API may return the PK as 'id', 'customer_id', 'cust_id', etc.
+                        const customerId = item.id || item.customer_id || item.cust_id || item.mc_id || 0;
+                        
+                        if (!customerId || customerId === 0) {
+                            console.warn(`⚠️  Row ${idx}: No customer ID for ${item.customer_name} — raw item keys:`, Object.keys(item), '| values:', item);
+                        } else {
+                            console.log(`✅ Row ${idx}: ${item.customer_name} → customer_id=${customerId}`);
+                        }
+                        
+                        return {
+                            customer_id: customerId,
+                            service_id: item.service_id || 0,
+                            wm: "",
+                            customer: item.customer_name || item.customer,
+                            seNumber: item.service_number || item.sc_number || '',
+                            consumption: "0",
+                            c1: "0", c1_pp: "0", c1_bank: "0",
+                            c2: "0", c2_pp: "0", c2_bank: "0",
+                            c4: "0", c4_pp: "0", c4_bank: "0",
+                            c5: "0", c5_pp: "0", c5_bank: "0",
+                            c1_allot: "0", c2_allot: "0", c4_allot: "0", c5_allot: "0"
+                        };
+                    });
+                    
+                    setEnergyAllotmentData(formattedData);
+                    console.log("✅ Formatted data ready:", formattedData);
+                    toast.success(`✓ Loaded ${formattedData.length} customer records`);
+                } else {
+                    console.warn("⚠️  Empty or invalid response");
+                    toast.warning("No customers found. Fill in data manually.");
+                }
+            } catch (error: any) {
+                console.error("❌ Error fetching customers:", error);
+                if (error.response?.status === 401) {
+                    toast.error("Session expired. Please login again.");
+                } else {
+                    toast.warning("Could not load customers. You can still enter data manually.");
+                }
+            }
+        };
+        fetchCustomers();
+    }, []);
 
     const currentYear = new Date().getFullYear();
     const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
@@ -160,9 +340,202 @@ export default function EnergyAllotment() {
         setIsEditing(!isEditing);
     };
 
-    const handleSave = () => {
-        setIsEditing(false);
-        toast.success("Data saved successfully");
+    const fetchEbStatementSummary = async () => {
+        try {
+            console.log(`🔍 Fetching EB Statement totals for ${selectedYear}-${selectedMonth}...`);
+            const response = await api.get(`/eb/summary/by-month?year=${selectedYear}&month=${selectedMonth}`);
+            if (response.data && response.data.status === "success") {
+                const summaryData = response.data.data;
+                console.log("✅ EB Summary fetched successfully:", summaryData);
+                setEbSummaryData(summaryData);
+            } else {
+                console.warn("⚠️ EB Summary response was not successful:", response.data);
+            }
+        } catch (error: any) {
+            console.error("❌ Error fetching EB statement summary:", error?.response?.data || error.message);
+        }
+    };
+
+    useEffect(() => {
+        fetchEbStatementSummary();
+    }, [selectedYear, selectedMonth]);
+
+    const handleSearch = async () => {
+        toast.info("Fetching Windmill EB Statement details for the selected period...");
+        await fetchEbStatementSummary();
+        toast.success("Fetched availability from EB Statements!");
+    };
+
+    const handleSave = async () => {
+        if (isSaving) return;
+        
+        setIsSaving(true);
+        try {
+            if (!energyAllotmentData || energyAllotmentData.length === 0) {
+                toast.error("No data available");
+                setIsSaving(false);
+                return;
+            }
+
+            let successCount = 0;
+            let errorCount = 0;
+            let skippedCount = 0;
+
+            // Filter rows that have actual data
+            const rowsWithData = energyAllotmentData.filter(row => {
+                const hasData = 
+                    (parseFloat(row.c1) || 0) !== 0 ||
+                    (parseFloat(row.c1_bank) || 0) !== 0 ||
+                    (parseFloat(row.c2) || 0) !== 0 ||
+                    (parseFloat(row.c2_bank) || 0) !== 0 ||
+                    (parseFloat(row.c4) || 0) !== 0 ||
+                    (parseFloat(row.c4_bank) || 0) !== 0 ||
+                    (parseFloat(row.c5) || 0) !== 0 ||
+                    (parseFloat(row.c5_bank) || 0) !== 0 ||
+                    (parseFloat(row.consumption) || 0) !== 0;
+                return hasData;
+            });
+
+            if (rowsWithData.length === 0) {
+                toast.warning("ℹ️ No rows with data. Fill in at least one field to save.");
+                setIsSaving(false);
+                return;
+            }
+
+            console.log(`📝 Processing ${rowsWithData.length} rows with data...`);
+
+            for (const row of rowsWithData) {
+                console.log(`\n🔄 Processing: ${row.customer} | Customer ID: ${row.customer_id} | Service: ${row.seNumber}`);
+                
+                // Skip if no customer and no service number
+                if (!row.customer && !row.seNumber) {
+                    console.warn(`⏭️  Skipped - No customer or service info`);
+                    skippedCount++;
+                    continue;
+                }
+                
+                try {
+                    // Guard: resolve customer_id from any field variant present on the row
+                    const resolvedCustomerId = parseInt(String(
+                        row.customer_id || row.id || row.cust_id || row.mc_id || 0
+                    )) || 0;
+                    
+                    if (resolvedCustomerId === 0) {
+                        console.error(`❌ SKIPPING ${row.customer} — customer_id resolved to 0. Row:`, row);
+                        skippedCount++;
+                        continue;
+                    }
+
+                    // Resolve windmill_id from windmill numbers mapping
+                    const windmillObj = windmillsDetailed.find(w => w.windmill_number === row.wm);
+                    const resolvedWindmillId = windmillObj?.id || 0;
+                    
+                    const payload = {
+                        allotment_year: parseInt(selectedYear),
+                        allotment_month: parseInt(selectedMonth),
+                        allotment_date: new Date().toISOString().split('T')[0],
+                        customer_id: resolvedCustomerId,
+                        windmill_id: resolvedWindmillId,
+                        service_id: row.service_id || 0,
+                        service_number: row.seNumber ? String(row.seNumber).trim() : null,
+                        c1_power: parseFloat(row.c1) || 0,
+                        c1_banking: parseFloat(row.c1_bank) || 0,
+                        c2_power: parseFloat(row.c2) || 0,
+                        c2_banking: parseFloat(row.c2_bank) || 0,
+                        c4_power: parseFloat(row.c4) || 0,
+                        c4_banking: parseFloat(row.c4_bank) || 0,
+                        c5_power: parseFloat(row.c5) || 0,
+                        c5_banking: parseFloat(row.c5_bank) || 0,
+                        requested_power: parseFloat(row.consumption) || 0,
+                        requested_banking: 0,
+                        allocated_power: parseFloat(row.c1_allot) || 0,
+                        allocated_banking: 0,
+                        utilized_power: 0,
+                        utilized_banking: 0
+                    };
+                    
+                    console.log("📤 Payload:", JSON.stringify(payload, null, 2));
+                    
+                    const response = await api.post("/windmills/energy-allotment/create", payload);
+                    console.log("✅ Response:", response.status, response.data);
+                    
+                    if (response.status === 200 || response.data?.status === "success") {
+                        toast.success(`✓ Saved: ${row.customer}${row.seNumber ? ' - ' + row.seNumber : ''}`);
+                        console.log("✅ Successfully saved");
+                        successCount++;
+                    } else {
+                        const errMsg = response.data?.error || response.data?.message || response.data?.detail || "Unexpected response";
+                        toast.error(`✗ ${row.customer}: ${errMsg}`);
+                        console.error("❌ Save failed:", errMsg);
+                        errorCount++;
+                    }
+                } catch (rowError: any) {
+                    console.error("❌ Exception for row:", row.customer, rowError);
+                    
+                    // Extract clean error message
+                    let errorMsg = "Unknown error";
+                    
+                    if (rowError.response?.data) {
+                        const errorData = rowError.response.data;
+                        
+                        if (Array.isArray(errorData)) {
+                            // List of validation errors
+                            errorMsg = errorData
+                                .map((err: any) => {
+                                    if (typeof err === 'object' && err.msg) {
+                                        return String(err.msg);
+                                    }
+                                    return String(err);
+                                })
+                                .join("; ");
+                        } else if (typeof errorData === 'object') {
+                            // Object with detail or error field
+                            errorMsg = (errorData.detail || errorData.error || JSON.stringify(errorData));
+                            if (typeof errorMsg === 'object') {
+                                errorMsg = JSON.stringify(errorMsg);
+                            }
+                        } else if (typeof errorData === 'string') {
+                            errorMsg = errorData;
+                        }
+                    } else if (rowError.message) {
+                        errorMsg = String(rowError.message);
+                    }
+                    
+                    // Convert any remaining objects to string
+                    errorMsg = String(errorMsg).replace(/\[object Object\]/g, "API Error");
+                    
+                    console.error("Extracted error:", errorMsg);
+                    
+                    if (!row.customer_id || row.customer_id === 0) {
+                        toast.warning(`⚠️ ${row.customer}: No Customer ID - ${errorMsg.substring(0, 60)}`);
+                    } else {
+                        toast.error(`✗ ${row.customer}: ${errorMsg.substring(0, 80)}`);
+                    }
+                    
+                    errorCount++;
+                }
+            }
+            
+            // Final summary
+            const summary = `📊 Saved: ${successCount} | Skipped: ${skippedCount} | Errors: ${errorCount}`;
+            console.log("\n" + summary);
+            
+            if (successCount > 0) {
+                if (errorCount === 0 && skippedCount === 0) {
+                    toast.success(`✅ All ${successCount} records saved!`);
+                    setIsEditing(false);
+                } else {
+                    toast.info(summary);
+                }
+            } else {
+                toast.error(`❌ No records saved. Errors: ${errorCount}`);
+            }
+        } catch (error: any) {
+            console.error("❌ Top-level error:", error);
+            toast.error("Unexpected error. Check console.");
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const handleChargeCustomerChange = (index: number, customer: string) => {
@@ -213,19 +586,43 @@ export default function EnergyAllotment() {
     const handleGridUpdate = (customer: string, seNumber: string, wm: string, field: string, value: string) => {
         const index = energyAllotmentData.findIndex(d => d.customer === customer && d.seNumber === seNumber && d.wm === wm);
 
+        // Subtraction Logic: Requested = Original - Allocated
+        const originalReq = consumptionRequests.find(r => 
+            r.customer_name === customer && 
+            (r.sc_number === seNumber || r.sc_number === wm)
+        );
+
+        const getSubtractedValue = (allocVal: string, origVal: any) => {
+            const a = parseFloat(allocVal) || 0;
+            const o = parseFloat(origVal) || 0;
+            const res = o - a;
+            return res.toFixed(2).replace(/\.00$/, "");
+        };
+
         if (index >= 0) {
             // Update existing
             const newData = [...energyAllotmentData];
-            newData[index] = { ...newData[index], [field]: value };
+            const updated: any = { ...newData[index], [field]: value };
+            
+            // Sync: Allocated -> Requested subtraction
+            if (field === 'c1') updated.req_c1 = getSubtractedValue(value, originalReq?.c1);
+            if (field === 'c2') updated.req_c2 = getSubtractedValue(value, originalReq?.c2);
+            if (field === 'c4') updated.req_c4 = getSubtractedValue(value, originalReq?.c4);
+            if (field === 'c5') updated.req_c5 = getSubtractedValue(value, originalReq?.c5);
+
+            newData[index] = updated;
             setEnergyAllotmentData(newData);
         } else {
-            // Create new entry
-            // Find sibling to copy potential static data like consumption if needed, or default
+            // Create new entry — carry customer_id from the sibling (same customer+SE, different WM)
             const sibling = energyAllotmentData.find(d => d.customer === customer && d.seNumber === seNumber);
-            const newEntry = {
+            // Resolve customer_id from sibling using all possible field name variants
+            const resolvedCustId = sibling?.customer_id || sibling?.id || sibling?.cust_id || sibling?.mc_id || 0;
+            const newEntry: any = {
                 wm,
                 customer,
                 seNumber,
+                customer_id: resolvedCustId,   // ← always carry the PK forward
+                service_id: sibling?.service_id || 0,
                 consumption: sibling ? sibling.consumption : "0",
                 c1: "0", c1_pp: "0", c1_bank: "0",
                 c2: "0", c2_pp: "0", c2_bank: "0",
@@ -234,13 +631,21 @@ export default function EnergyAllotment() {
                 c1_allot: "0", c2_allot: "0", c4_allot: "0", c5_allot: "0",
                 [field]: value
             };
+
+            // Sync: Allocated -> Requested subtraction
+            if (field === 'c1') newEntry.req_c1 = getSubtractedValue(value, originalReq?.c1);
+            if (field === 'c2') newEntry.req_c2 = getSubtractedValue(value, originalReq?.c2);
+            if (field === 'c4') newEntry.req_c4 = getSubtractedValue(value, originalReq?.c4);
+            if (field === 'c5') newEntry.req_c5 = getSubtractedValue(value, originalReq?.c5);
+
             setEnergyAllotmentData([...energyAllotmentData, newEntry]);
         }
     };
 
     return (
-        <div className="p-2 bg-slate-50 min-h-screen font-sans">
-            <div className="max-w-full mx-auto bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+        <ErrorBoundary>
+            <div className="p-2 bg-slate-50 min-h-screen font-sans">
+                <div className="max-w-full mx-auto bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
                 <div className="p-3 space-y-2">
                     {/* Page Title */}
                     <div className="flex items-center justify-between pb-1">
@@ -291,11 +696,11 @@ export default function EnergyAllotment() {
 
                             <div className="flex-1"></div>
 
-                            <Button size="sm" className="h-9 text-sm bg-[#0E7490] hover:bg-[#0C6159] text-white px-4">
+                            <Button size="sm" className="h-9 text-sm bg-[#0E7490] hover:bg-[#0C6159] text-white px-4" onClick={handleSearch}>
                                 Search
                             </Button>
-                            <Button size="sm" className="h-9 text-sm bg-red-600 hover:bg-red-700 text-white px-4" onClick={handleSave}>
-                                Save
+                            <Button size="sm" className="h-9 text-sm bg-red-600 hover:bg-red-700 text-white px-4 disabled:opacity-50 disabled:cursor-not-allowed" onClick={handleSave} disabled={isSaving}>
+                                {isSaving ? "Saving..." : "Save"}
                             </Button>
                             <Button size="sm" className="h-9 text-sm bg-slate-500 hover:bg-slate-600 text-white px-4" onClick={() => setIsEditing(false)}>
                                 Cancel
@@ -355,8 +760,8 @@ export default function EnergyAllotment() {
                                                 <TableHead rowSpan={2} className="h-10 font-semibold text-white whitespace-nowrap min-w-[120px] w-[120px] border-r border-white/20 bg-sidebar sticky left-0 z-50">Customer</TableHead>
                                                 <TableHead rowSpan={2} className="h-10 font-semibold text-white whitespace-nowrap min-w-[120px] w-[120px] border-r border-white/20 bg-sidebar sticky left-[120px] z-50">Service Number</TableHead>
                                                 <TableHead rowSpan={2} className="h-10 font-semibold text-white whitespace-nowrap min-w-[120px] w-[120px] border-r border-white/20 bg-sidebar sticky left-[240px] z-50"></TableHead>
-                                                {/* Fixed Generator Columns */}
-                                                {["WM-001", "WM-002", "WM-003", "WM-004", "WM-005", "WM-006", "WM-007", "WM-008", "SOLAR-001"].map((wm) => {
+                                                {/* Dynamic Generator Columns */}
+                                                {windmillNumbers.map((wm) => {
                                                     return (
                                                         <TableHead key={wm} colSpan={4} className="h-auto font-semibold text-center border-b border-r border-slate-400 last:border-r-0 p-0 align-top bg-white">
                                                             <div className="bg-sidebar text-white h-full flex items-center justify-center py-2">
@@ -368,11 +773,11 @@ export default function EnergyAllotment() {
                                                 <TableHead rowSpan={2} className="h-10 font-semibold text-white text-center border-b border-r border-white/20 align-middle">Total</TableHead>
                                             </TableRow>
                                             <TableRow className="bg-sidebar/85 hover:bg-sidebar/85 border-b-0">
-                                                {["WM-001", "WM-002", "WM-003", "WM-004", "WM-005", "WM-006", "WM-007", "WM-008", "SOLAR-001"].map((wm) => {
+                                                {windmillNumbers.map((wm) => {
                                                     const wmItems = energyAllotmentData.filter(d => d.wm === wm);
                                                     const renderColHeader = (col: 'c1' | 'c2' | 'c4' | 'c5', label: string, isLast = false) => {
-                                                        const totalPP = wmItems.reduce((acc, curr) => acc + (Number(curr[`${col}_pp`]) || 0), 0);
-                                                        const totalBank = wmItems.reduce((acc, curr) => acc + (Number(curr[`${col}_bank`]) || 0), 0);
+                                                        const totalPP = ebSummaryData[wm] ? Number(ebSummaryData[wm][`${col}_pp`]) || 0 : 0;
+                                                        const totalBank = ebSummaryData[wm] ? Number(ebSummaryData[wm][`${col}_bank`]) || 0 : 0;
                                                         const totalAllocated = wmItems.reduce((acc, curr) => acc + (Number(String(curr[col]).replace(/,/g, '')) || 0), 0);
                                                         let displayPower = totalPP - totalAllocated;
                                                         let displayBank = totalBank;
@@ -411,7 +816,7 @@ export default function EnergyAllotment() {
                                         <TableBody>
                                             {/* Group Logic */}
                                             {(() => {
-                                                const generators = ["WM-001", "WM-002", "WM-003", "WM-004", "WM-005", "WM-006", "WM-007", "WM-008", "SOLAR-001"];
+                                                const generators = windmillNumbers;
                                                 // Group by Customer then SE Number
                                                 // Group by Customer then SE Number
                                                 const filteredData = energyAllotmentData.filter(item => {
@@ -440,7 +845,7 @@ export default function EnergyAllotment() {
                                                             {generators.map((wm) => {
                                                                 const wmItems = energyAllotmentData.filter(d => d.wm === wm);
                                                                 const renderC = (col: 'c1' | 'c2' | 'c4' | 'c5') => {
-                                                                    const totalPP = wmItems.reduce((acc, curr) => acc + (Number(curr[`${col}_pp`]) || 0), 0);
+                                                                    const totalPP = ebSummaryData[wm] ? Number(ebSummaryData[wm][`${col}_pp`]) || 0 : 0;
                                                                     return <TableCell key={`${wm}-${col}-pp`} className="p-1 border-r text-center font-bold text-[#0369a1] text-[11px] bg-[#e0f2fe]">{totalPP}</TableCell>
                                                                 };
                                                                 return (
@@ -463,7 +868,7 @@ export default function EnergyAllotment() {
                                                             {generators.map((wm) => {
                                                                 const wmItems = energyAllotmentData.filter(d => d.wm === wm);
                                                                 const renderC = (col: 'c1' | 'c2' | 'c4' | 'c5') => {
-                                                                    const totalBank = wmItems.reduce((acc, curr) => acc + (Number(curr[`${col}_bank`]) || 0), 0);
+                                                                    const totalBank = ebSummaryData[wm] ? Number(ebSummaryData[wm][`${col}_bank`]) || 0 : 0;
                                                                     return <TableCell key={`${wm}-${col}-bank`} className="p-1 border-r text-center font-bold text-[#c2410c] text-[11px] bg-[#ffedd5]">{totalBank}</TableCell>
                                                                 };
                                                                 return (
@@ -501,6 +906,24 @@ export default function EnergyAllotment() {
                                                             const rows = seList.map((seNumber, seIndex) => {
                                                                 const rowItems = filteredData.filter(d => d.customer === customer && d.seNumber === seNumber);
                                                                 const rowTotal = rowItems.reduce((acc, d) => acc + (Number(d.c1) || 0) + (Number(d.c2) || 0) + (Number(d.c4) || 0) + (Number(d.c5) || 0), 0);
+                                                                const totalConsumptionReq = consumptionRequests.find(r => r.customer_name === customer && r.sc_number === seNumber);
+
+                                                                // Calculate cumulative allocated amounts for this SE across all windmills
+                                                                const totalAllocC1 = rowItems.reduce((acc, d) => acc + (parseFloat(d.c1) || 0), 0);
+                                                                const totalAllocC2 = rowItems.reduce((acc, d) => acc + (parseFloat(d.c2) || 0), 0);
+                                                                const totalAllocC4 = rowItems.reduce((acc, d) => acc + (parseFloat(d.c4) || 0), 0);
+                                                                const totalAllocC5 = rowItems.reduce((acc, d) => acc + (parseFloat(d.c5) || 0), 0);
+
+                                                                const getBalance = (orig: any, totalAlloc: number) => {
+                                                                    const o = parseFloat(orig) || 0;
+                                                                    const res = o - totalAlloc;
+                                                                    return res.toFixed(2).replace(/\.00$/, "");
+                                                                };
+
+                                                                const balC1 = getBalance(totalConsumptionReq?.c1, totalAllocC1);
+                                                                const balC2 = getBalance(totalConsumptionReq?.c2, totalAllocC2);
+                                                                const balC4 = getBalance(totalConsumptionReq?.c4, totalAllocC4);
+                                                                const balC5 = getBalance(totalConsumptionReq?.c5, totalAllocC5);
 
                                                                 return (
                                                                     <React.Fragment key={`${customer}-${seNumber}`}>
@@ -515,7 +938,7 @@ export default function EnergyAllotment() {
                                                                                 <div className="flex flex-col gap-2">
                                                                                     <span>{seNumber}</span>
                                                                                     <div className="flex flex-col text-[10px] font-semibold gap-1">
-                                                                                        <span><span className="text-slate-500">Requested:</span> <span className="text-[#B22222]">{rowItems[0]?.consumption || '0'}</span></span>
+                                                                                        <span><span className="text-slate-500">Requested:</span> <span className="text-[#B22222]">{parseFloat(getBalance(totalConsumptionReq?.total, rowTotal)) || '0'}</span></span>
                                                                                         <span><span className="text-slate-500">Allocated:</span> <span className="text-[#B22222]">{rowTotal}</span></span>
                                                                                     </div>
                                                                                 </div>
@@ -524,13 +947,36 @@ export default function EnergyAllotment() {
                                                                                 Requested
                                                                             </TableCell>
                                                                             {generators.map(wm => {
-                                                                                const item = filteredData.find(d => d.customer === customer && d.seNumber === seNumber && d.wm === wm);
                                                                                 return (
                                                                                     <React.Fragment key={wm}>
-                                                                                        <TableCell className="p-1 border-r text-center"><Input disabled={!isEditing} className="h-7 text-center text-xs px-0" value={item ? item.req_c1 || '' : ''} onChange={(e) => handleGridUpdate(customer, seNumber, wm, 'req_c1', e.target.value)} /></TableCell>
-                                                                                        <TableCell className="p-1 border-r text-center"><Input disabled={!isEditing} className="h-7 text-center text-xs px-0" value={item ? item.req_c2 || '' : ''} onChange={(e) => handleGridUpdate(customer, seNumber, wm, 'req_c2', e.target.value)} /></TableCell>
-                                                                                        <TableCell className="p-1 border-r text-center"><Input disabled={!isEditing} className="h-7 text-center text-xs px-0" value={item ? item.req_c4 || '' : ''} onChange={(e) => handleGridUpdate(customer, seNumber, wm, 'req_c4', e.target.value)} /></TableCell>
-                                                                                        <TableCell className="p-1 border-r text-center"><Input disabled={!isEditing} className="h-7 text-center text-xs px-0" value={item ? item.req_c5 || '' : ''} onChange={(e) => handleGridUpdate(customer, seNumber, wm, 'req_c5', e.target.value)} /></TableCell>
+                                                                                        <TableCell className="p-1 border-r text-center">
+                                                                                            <Input
+                                                                                                disabled
+                                                                                                className="h-7 text-center text-xs px-0"
+                                                                                                value={balC1}
+                                                                                            />
+                                                                                        </TableCell>
+                                                                                        <TableCell className="p-1 border-r text-center">
+                                                                                            <Input
+                                                                                                disabled
+                                                                                                className="h-7 text-center text-xs px-0"
+                                                                                                value={balC2}
+                                                                                            />
+                                                                                        </TableCell>
+                                                                                        <TableCell className="p-1 border-r text-center">
+                                                                                            <Input
+                                                                                                disabled
+                                                                                                className="h-7 text-center text-xs px-0"
+                                                                                                value={balC4}
+                                                                                            />
+                                                                                        </TableCell>
+                                                                                        <TableCell className="p-1 border-r text-center">
+                                                                                            <Input
+                                                                                                disabled
+                                                                                                className="h-7 text-center text-xs px-0"
+                                                                                                value={balC5}
+                                                                                            />
+                                                                                        </TableCell>
                                                                                     </React.Fragment>
                                                                                 );
                                                                             })}
@@ -546,10 +992,10 @@ export default function EnergyAllotment() {
                                                                                 const item = filteredData.find(d => d.customer === customer && d.seNumber === seNumber && d.wm === wm);
                                                                                 return (
                                                                                     <React.Fragment key={wm}>
-                                                                                        <TableCell className="p-1 border-r text-center"><Input disabled={!isEditing} className="h-7 text-center text-xs px-0" value={item ? item.c1 : ''} onChange={(e) => handleGridUpdate(customer, seNumber, wm, 'c1', e.target.value)} /></TableCell>
-                                                                                        <TableCell className="p-1 border-r text-center"><Input disabled={!isEditing} className="h-7 text-center text-xs px-0" value={item ? item.c2 : ''} onChange={(e) => handleGridUpdate(customer, seNumber, wm, 'c2', e.target.value)} /></TableCell>
-                                                                                        <TableCell className="p-1 border-r text-center"><Input disabled={!isEditing} className="h-7 text-center text-xs px-0" value={item ? item.c4 : ''} onChange={(e) => handleGridUpdate(customer, seNumber, wm, 'c4', e.target.value)} /></TableCell>
-                                                                                        <TableCell className="p-1 border-r text-center"><Input disabled={!isEditing} className="h-7 text-center text-xs px-0" value={item ? item.c5 : ''} onChange={(e) => handleGridUpdate(customer, seNumber, wm, 'c5', e.target.value)} /></TableCell>
+                                                                                        <TableCell className="p-1 border-r text-center"><Input className="h-7 text-center text-xs px-0" value={item ? item.c1 : ''} onChange={(e) => handleGridUpdate(customer, seNumber, wm, 'c1', e.target.value)} /></TableCell>
+                                                                                        <TableCell className="p-1 border-r text-center"><Input className="h-7 text-center text-xs px-0" value={item ? item.c2 : ''} onChange={(e) => handleGridUpdate(customer, seNumber, wm, 'c2', e.target.value)} /></TableCell>
+                                                                                        <TableCell className="p-1 border-r text-center"><Input className="h-7 text-center text-xs px-0" value={item ? item.c4 : ''} onChange={(e) => handleGridUpdate(customer, seNumber, wm, 'c4', e.target.value)} /></TableCell>
+                                                                                        <TableCell className="p-1 border-r text-center"><Input className="h-7 text-center text-xs px-0" value={item ? item.c5 : ''} onChange={(e) => handleGridUpdate(customer, seNumber, wm, 'c5', e.target.value)} /></TableCell>
                                                                                     </React.Fragment>
                                                                                 );
                                                                             })}
@@ -565,8 +1011,7 @@ export default function EnergyAllotment() {
                                                                                 const item = filteredData.find(d => d.customer === customer && d.seNumber === seNumber && d.wm === wm);
                                                                                 const getUP = (col: string) => {
                                                                                     if (!item) return '-';
-                                                                                    const wmItems = filteredData.filter(d => d.wm === wm);
-                                                                                    const totalPP = wmItems.reduce((acc, curr) => acc + (Number(curr[`${col}_pp`]) || 0), 0);
+                                                                                    const totalPP = ebSummaryData[wm] ? Number(ebSummaryData[wm][`${col}_pp`]) || 0 : 0;
                                                                                     const currentIndex = renderedOrder.findIndex(r => r.customer === customer && r.seNumber === seNumber);
                                                                                     let prevAlloc = 0;
                                                                                     for (let i = 0; i < currentIndex; i++) {
@@ -602,9 +1047,8 @@ export default function EnergyAllotment() {
                                                                                 const item = filteredData.find(d => d.customer === customer && d.seNumber === seNumber && d.wm === wm);
                                                                                 const getUB = (col: string) => {
                                                                                     if (!item) return '-';
-                                                                                    const wmItems = filteredData.filter(d => d.wm === wm);
-                                                                                    const totalPP = wmItems.reduce((acc, curr) => acc + (Number(curr[`${col}_pp`]) || 0), 0);
-                                                                                    const totalBank = wmItems.reduce((acc, curr) => acc + (Number(curr[`${col}_bank`]) || 0), 0);
+                                                                                    const totalPP = ebSummaryData[wm] ? Number(ebSummaryData[wm][`${col}_pp`]) || 0 : 0;
+                                                                                    const totalBank = ebSummaryData[wm] ? Number(ebSummaryData[wm][`${col}_bank`]) || 0 : 0;
                                                                                     const currentIndex = renderedOrder.findIndex(r => r.customer === customer && r.seNumber === seNumber);
                                                                                     let prevAlloc = 0;
                                                                                     for (let i = 0; i < currentIndex; i++) {
@@ -811,7 +1255,7 @@ export default function EnergyAllotment() {
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
-                                            {["WM-001", "WM-002", "WM-003", "WM-004", "WM-005", "WM-006", "WM-007", "WM-008", "SOLAR-001"].map((wm, index) => (
+                                            {windmillNumbers.map((wm, index) => (
                                                 <TableRow key={index} className="hover:bg-slate-50 border-b border-slate-100">
                                                     <TableCell className="py-3 text-sm text-slate-700 font-medium pl-4">{index + 1}</TableCell>
                                                     <TableCell className="py-3 text-sm text-slate-700 font-medium">{wm}</TableCell>
@@ -846,8 +1290,9 @@ export default function EnergyAllotment() {
                             </TabsContent>
                         </Tabs>
                     </div>
-                </div >
-            </div >
-        </div >
+                </div>
+            </div>
+            </div>
+        </ErrorBoundary>
     );
 }

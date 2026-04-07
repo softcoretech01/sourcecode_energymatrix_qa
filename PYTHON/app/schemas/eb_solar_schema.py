@@ -61,6 +61,8 @@ class EBSolarRecord(BaseModel):
     status: Optional[str] = None
     year: Optional[int] = None
     month: Optional[str] = None
+    created_at: Optional[str] = None
+    created_by: Optional[str] = None
 
 
 class EBSolarListResponse(BaseModel):

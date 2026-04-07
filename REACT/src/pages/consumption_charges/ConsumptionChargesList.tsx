@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Search, Plus, Edit } from "lucide-react";
+import { Search, Plus, Edit, Eye } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatusSlider } from "@/components/StatusSlider";
@@ -301,13 +301,21 @@ const handleExportExcel = () => {
                                                             status={row.status}
                                                             onToggle={() => toggleConsumptionStatus(row)}
                                                         />
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-6 w-6 text-indigo-600 hover:bg-indigo-50"
+                                                            onClick={() => navigate(`/master/consumption-charges/view/${row.id}`)}
+                                                            title="View"
+                                                        >
+                                                            <Eye className="h-4 w-4" />
+                                                        </Button>
                                                        <Button
   variant="ghost"
   size="icon"
   className="h-6 w-6 text-primary hover:text-primary hover:bg-primary/10"
   onClick={() => navigate(`/master/consumption-charges/edit/${row.id}`)}
-  disabled={row.is_submitted === 1}
-  title={row.is_submitted === 1 ? "Cannot edit posted record" : "Edit"}
+  title="Edit"
 >
   <Edit className="h-4 w-4" />
 </Button>

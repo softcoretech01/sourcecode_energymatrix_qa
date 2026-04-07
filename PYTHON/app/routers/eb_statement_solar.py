@@ -22,8 +22,29 @@ router = APIRouter(prefix="/eb-solar", tags=["EB Statement Solar"])
 
 # Use same uploads/eb_statements folder (creates subfolder 'solar')
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-UPLOAD_DIR = os.path.join(BASE_DIR, "uploads", "eb_statements", "solar")
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+# For legacy fallbacks
+UPLOAD_DIR_LEGACY = os.path.join(BASE_DIR, "uploads", "eb_statements")
+
+def normalize_month(month_val):
+    month_names = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    if str(month_val).isdigit():
+        idx = int(month_val)
+        if 1 <= idx <= 12:
+            return month_names[idx-1]
+    return str(month_val).capitalize()
+
+def get_solar_number(cursor, solar_id):
+    if not solar_id:
+        return "solar"
+    try:
+        if str(solar_id).isdigit():
+            cursor.execute("SELECT windmill_number FROM masters.master_windmill WHERE id=%s", (int(solar_id),))
+        else:
+            cursor.execute("SELECT windmill_number FROM masters.master_windmill WHERE windmill_number=%s", (solar_id,))
+        row = cursor.fetchone()
+        return row[0] if row else str(solar_id)
+    except Exception:
+        return str(solar_id)
 
 
 def _normalize_month_value(month_value):
@@ -66,42 +87,92 @@ async def upload_eb_statement_solar(
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files allowed")
 
-    unique_name = f"{solar_id}_{month}_{uuid4().hex}.pdf"
-    file_path = os.path.join(UPLOAD_DIR, unique_name)
+    # Check for duplicate upload (same solar_id, month, and year)
+    conn = get_connection(db_name="solar")
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT id FROM solar.eb_statement_solar 
+            WHERE solar_id=%s AND month=%s AND year=%s
+            """,
+            (solar_id, month, year)
+        )
+        existing_record = cursor.fetchone()
+        if existing_record:
+            raise HTTPException(
+                status_code=409, 
+                detail=f"EB Statement (solar) for this ID already exists for {month} {year}. Please delete the existing record first if you want to re-upload."
+            )
+    finally:
+        cursor.close()
+        conn.close()
+
+    # Get Solar Number for naming
+    cursor = conn.cursor()
+    solar_num = get_solar_number(cursor, solar_id)
+    cursor.close()
+
+    # Normalize month
+    month_name = normalize_month(month)
+    year_str = str(year) if year else str(__import__('datetime').datetime.now().year)
+    
+    # New Structured Path: uploads/eb_statements_solar/year/month
+    target_dir = os.path.join(BASE_DIR, "uploads", "eb_statements_solar", year_str, month_name)
+    os.makedirs(target_dir, exist_ok=True)
+
+    # Filename: solar_number_month_year.pdf
+    clean_solar = re.sub(r'[^a-zA-Z0-9]', '_', solar_num)
+    unique_name = f"{clean_solar}_{month_name}_{year_str}.pdf"
+    file_path = os.path.join(target_dir, unique_name)
 
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
     # Store file path in DB
+    # Use direct INSERT instead of SP to ensure only the header is created.
+    # This prevents premature saving of detail values.
+    header_id = None
     conn = get_connection(db_name="solar")
     cursor = conn.cursor()
     try:
         cursor.execute(
-            "CALL solar.sp_insert_eb_statement_solar(%s,%s,%s)",
-            (solar_id, month, unique_name)
+            "INSERT INTO solar.eb_statement_solar (solar_id, month, year, pdf_file_path, is_submitted, created_by) VALUES (%s, %s, %s, %s, %s, %s)",
+            (int(solar_id) if solar_id and str(solar_id).isdigit() else solar_id, month, year, file_path, 0, 1),
         )
         conn.commit()
+        header_id = cursor.lastrowid
+        
+        try:
+            # Ensure year column exists before updating
+            cursor.execute("SHOW COLUMNS FROM solar.eb_statement_solar LIKE 'year'")
+            if not cursor.fetchone():
+                cursor.execute("ALTER TABLE solar.eb_statement_solar ADD COLUMN year INT NULL")
+                conn.commit()
+            cursor.execute("UPDATE solar.eb_statement_solar SET year=%s WHERE id=%s", (year, header_id))
+            conn.commit()
+        except Exception as year_update_exc:
+            print("Failed to update year on EB solar upload:", year_update_exc)
 
-        # Persist reported year for filtering if provided
-        if year is not None:
-            cursor.execute(
-                "SELECT id FROM solar.eb_statement_solar WHERE pdf_file_path LIKE %s AND solar_id=%s AND month=%s ORDER BY created_at DESC LIMIT 1",
-                (f"%{unique_name}%", solar_id, month),
-            )
-            row = cursor.fetchone()
-            if row:
-                header_id = row[0]
-                try:
-                    cursor.execute("UPDATE solar.eb_statement_solar SET year=%s WHERE id=%s", (year, header_id))
-                    conn.commit()
-                except Exception as year_update_exc:
-                    print("Failed to update year on EB solar upload:", year_update_exc)
-
+    except Exception as direct_exc:
+        print("Failed to insert solar.eb_statement_solar directly:", direct_exc)
+        raise HTTPException(status_code=500, detail="Failed to create header record")
     finally:
         cursor.close()
         conn.close()
 
-    return {"message": "EB Statement (solar) uploaded and stored in DB", "filename": unique_name}
+    # Parse PDF data for immediate response (so frontend has month/year/etc)
+    try:
+        parsed_data = extract_eb_statement_data(file_path, solar_num, year, month)
+    except Exception as pe:
+        parsed_data = {"error": str(pe)}
+
+    return {
+        "message": "EB Statement (solar) uploaded and header created", 
+        "filename": unique_name,
+        "header_id": header_id,
+        "parsed": parsed_data
+    }
 
 
 @router.get("/windmills")
@@ -111,7 +182,8 @@ async def get_solar_windmill_numbers():
     cursor = conn.cursor()
 
     try:
-        cursor.callproc("sp_get_solar_windmill_numbers")
+        # Filter by type = 'Solar' and posted status to show only active records
+        cursor.execute("SELECT id, windmill_number FROM masters.master_windmill WHERE LOWER(type) = 'solar' AND is_submitted = 1 ORDER BY windmill_number")
         rows = cursor.fetchall()
         data = [
             {"id": row[0], "solar_number": row[1]}
@@ -161,7 +233,7 @@ def search_eb_solar(
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
 ):
-    """Search using stored procedures (target) with fallback to direct query.
+    """Search using direct query from solar database.
     This is EB Statement Solar logic and should be isolated from windmill EB statements.
     """
     conn = get_connection(db_name="solar")
@@ -197,10 +269,25 @@ def search_eb_solar(
         return str(month_value)
 
     def fallback_query():
-        # Detect if a year column exists on solar.eb_statement_solar (for historical/year filtering)
+        # Resolve solar_number to solar_id if provided to allow server-side filtering
+        nonlocal solar_id
+        if solar_number:
+            try:
+                wm_conn = get_connection(db_name=DB_NAME_WINDMILL)
+                wm_cur = wm_conn.cursor()
+                wm_cur.execute("SELECT id FROM masters.master_windmill WHERE windmill_number = %s", (solar_number,))
+                wm_row = wm_cur.fetchone()
+                if wm_row:
+                    solar_id = wm_row[0]
+                wm_cur.close()
+                wm_conn.close()
+            except Exception as wm_exc:
+                print(f"Warning: Could not resolve solar_number to id: {wm_exc}")
+
+        # Detect if a year column exists on eb_statement_solar (for historical/year filtering)
         year_column_exists = False
         try:
-            cursor.execute("SHOW COLUMNS FROM solar.eb_statement_solar LIKE 'year'")
+            cursor.execute("SHOW COLUMNS FROM eb_statement_solar LIKE 'year'")
             year_column_exists = cursor.fetchone() is not None
         except Exception:
             year_column_exists = False
@@ -209,21 +296,17 @@ def search_eb_solar(
         params = []
 
         if solar_id:
-            conditions.append("solar.eb_statement_solar.solar_id = %s")
+            conditions.append("solar_id = %s")
             params.append(solar_id)
-
-        if solar_number:
-            conditions.append("masters.master_windmill.windmill_number = %s")
-            params.append(solar_number)
 
         if year is not None:
             try:
                 year_int = int(year)
                 if year_column_exists:
-                    conditions.append("(solar.eb_statement_solar.year = %s OR YEAR(solar.eb_statement_solar.created_at) = %s)")
+                    conditions.append("(year = %s OR YEAR(created_at) = %s)")
                     params.extend([year_int, year_int])
                 else:
-                    conditions.append("YEAR(solar.eb_statement_solar.created_at) = %s")
+                    conditions.append("YEAR(created_at) = %s")
                     params.append(year_int)
             except (ValueError, TypeError):
                 pass
@@ -236,49 +319,79 @@ def search_eb_solar(
 
             if month_int and 1 <= month_int <= 12:
                 month_name = calendar.month_name[month_int]
-                conditions.append("(solar.eb_statement_solar.month = %s OR solar.eb_statement_solar.month = %s)")
+                conditions.append("(month = %s OR month = %s)")
                 params.extend([month_int, month_name])
             else:
-                conditions.append("solar.eb_statement_solar.month = %s")
+                conditions.append("month = %s")
                 params.append(month)
 
         if status:
             status_text = status.lower() if isinstance(status, str) else ""
-            conditions.append("solar.eb_statement_solar.is_submitted = %s")
+            conditions.append("is_submitted = %s")
             params.append(1 if status_text in ["posted", "submitted", "saved"] else 0)
 
         if keyword:
-            conditions.append("(masters.master_windmill.windmill_number LIKE %s OR solar.eb_statement_solar.pdf_file_path LIKE %s)")
+            conditions.append("pdf_file_path LIKE %s")
             kw = f"%{keyword}%"
-            params.extend([kw, kw])
+            params.append(kw)
 
         where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
 
-        # Year column may not exist in older schema; use safe fallback.
-        cursor.execute("SHOW COLUMNS FROM eb_statement_solar LIKE 'year'")
-        year_column_exists = cursor.fetchone() is not None
-        year_select = "eb_statement_solar.year" if year_column_exists else "NULL AS year"
-
-        count_sql = f"SELECT COUNT(*) FROM eb_statement_solar LEFT JOIN masters.master_windmill ON eb_statement_solar.solar_id = masters.master_windmill.id{where_clause}"
+        count_sql = f"SELECT COUNT(*) FROM eb_statement_solar{where_clause}"
         cursor.execute(count_sql, tuple(params))
         count_row = cursor.fetchone()
         total = int(count_row[0]) if count_row and len(count_row) > 0 else 0
 
-        query_sql = f"SELECT DISTINCT eb_statement_solar.id, masters.master_windmill.windmill_number AS solar_number, eb_statement_solar.solar_id, eb_statement_solar.month, {year_select}, eb_statement_solar.pdf_file_path, eb_statement_solar.is_submitted, eb_statement_solar.created_at FROM eb_statement_solar LEFT JOIN masters.master_windmill ON eb_statement_solar.solar_id = masters.master_windmill.id{where_clause} ORDER BY eb_statement_solar.created_at DESC LIMIT %s OFFSET %s"
+        query_sql = f"SELECT DISTINCT id, solar_id, month, year, pdf_file_path, is_submitted, created_at, created_by FROM eb_statement_solar{where_clause} ORDER BY created_at DESC LIMIT %s OFFSET %s"
         cursor.execute(query_sql, tuple(params + [limit, offset]))
         rows = cursor.fetchall()
         columns = [desc[0] for desc in cursor.description]
         items = [dict(zip(columns, row)) for row in rows]
 
+        # Get solar numbers separately from windmill database
+        solar_ids = [item.get('solar_id') for item in items if item.get('solar_id')]
+        solar_map = {}
+        if solar_ids:
+            try:
+                windmill_conn = get_connection(db_name=DB_NAME_WINDMILL)
+                wm_cursor = windmill_conn.cursor()
+                placeholders = ",".join(["%s"] * len(solar_ids))
+                wm_cursor.execute(f"SELECT id, windmill_number FROM masters.master_windmill WHERE id IN ({placeholders})", solar_ids)
+                for row in wm_cursor.fetchall():
+                    solar_map[row[0]] = row[1]
+                wm_cursor.close()
+                windmill_conn.close()
+            except Exception as e:
+                print(f"Warning: Could not fetch solar numbers: {e}")
+        
+        # Add solar_number to items
         for item in items:
+            item["solar_number"] = solar_map.get(item.get('solar_id'), item.get('solar_id'))
             item["month"] = _normalize_month_value(item.get("month"))
+            
+            # Handle datetime and numeric fields to avoid Pydantic validation errors (str expected)
+            if "created_at" in item and item["created_at"]:
+                created_dt = item["created_at"]
+                if hasattr(created_dt, "strftime"):
+                    item["created_at"] = created_dt.strftime("%Y-%m-%d %H:%M:%S")
+                else:
+                    item["created_at"] = str(created_dt)
+            
+            if "created_by" in item and item["created_by"] is not None:
+                item["created_by"] = str(item["created_by"])
+
             if "year" not in item or item.get("year") is None:
                 created_at = item.get("created_at")
                 if created_at is not None:
                     try:
-                        item["year"] = int(created_at.year)
+                        # If we already converted it to string above, handle that or use the original date
+                        if isinstance(created_at, str):
+                            item["year"] = int(created_at.split("-")[0])
+                        else:
+                            item["year"] = int(created_at.year)
                     except Exception:
                         item["year"] = None
+        
         return {"total": total, "items": items}
 
     try:
@@ -304,33 +417,88 @@ def get_all_eb_solar(
 ):
     conn = get_connection(db_name="solar")
     cursor = conn.cursor()
+
+    def _normalize_month_value(month_value):
+        if month_value is None:
+            return None
+        if isinstance(month_value, int):
+            if 1 <= month_value <= 12:
+                return calendar.month_name[month_value]
+            return str(month_value)
+        if isinstance(month_value, str):
+            normalized = month_value.strip()
+            if normalized.isdigit():
+                num = int(normalized)
+                if 1 <= num <= 12:
+                    return calendar.month_name[num]
+                return normalized
+            normalized_title = normalized.capitalize()
+            if normalized_title in calendar.month_name:
+                return normalized_title
+            if normalized_title in calendar.month_abbr:
+                idx = list(calendar.month_abbr).index(normalized_title)
+                if idx > 0:
+                    return calendar.month_name[idx]
+            return normalized
+        return str(month_value)
+
     try:
         cursor.execute("SELECT COUNT(*) FROM eb_statement_solar")
         count_row = cursor.fetchone()
         total = int(count_row[0]) if count_row and len(count_row) > 0 else 0
 
-        cursor.execute("SHOW COLUMNS FROM eb_statement_solar LIKE 'year'")
-        year_column_exists = cursor.fetchone() is not None
-        year_select = "s.year" if year_column_exists else "NULL AS year"
-
         cursor.execute(
-            "SELECT DISTINCT s.id, m.windmill_number AS solar_number, s.solar_id, s.month, " + year_select + ", s.pdf_file_path, s.is_submitted, s.created_at "
-            "FROM eb_statement_solar AS s "
-            "LEFT JOIN masters.master_windmill AS m ON s.solar_id = m.id "
-            "ORDER BY s.created_at DESC LIMIT %s OFFSET %s",
+            "SELECT DISTINCT id, solar_id, month, year, pdf_file_path, is_submitted, created_at, created_by "
+            "FROM eb_statement_solar "
+            "ORDER BY created_at DESC LIMIT %s OFFSET %s",
             (limit, offset),
         )
         rows = cursor.fetchall()
         columns = [desc[0] for desc in cursor.description] if cursor.description else []
         items = [dict(zip(columns, row)) for row in rows]
 
+        # Get solar numbers separately
+        solar_ids = [item.get('solar_id') for item in items if item.get('solar_id')]
+        solar_map = {}
+        if solar_ids:
+            try:
+                windmill_conn = get_connection(db_name=DB_NAME_WINDMILL)
+                wm_cursor = windmill_conn.cursor()
+                placeholders = ",".join(["%s"] * len(solar_ids))
+                wm_cursor.execute(f"SELECT id, windmill_number FROM masters.master_windmill WHERE id IN ({placeholders})", solar_ids)
+                for row in wm_cursor.fetchall():
+                    solar_map[row[0]] = row[1]
+                wm_cursor.close()
+                windmill_conn.close()
+            except Exception as e:
+                print(f"Warning: Could not fetch solar numbers: {e}")
+        
+        # Add solar_number to items
+        for item in items:
+            item["solar_number"] = solar_map.get(item.get('solar_id'), item.get('solar_id'))
+
         for item in items:
             item["month"] = _normalize_month_value(item.get("month"))
+            
+            # Handle datetime and numeric fields to avoid Pydantic validation errors (str expected)
+            if "created_at" in item and item["created_at"]:
+                created_dt = item["created_at"]
+                if hasattr(created_dt, "strftime"):
+                    item["created_at"] = created_dt.strftime("%Y-%m-%d %H:%M:%S")
+                else:
+                    item["created_at"] = str(created_dt)
+            
+            if "created_by" in item and item["created_by"] is not None:
+                item["created_by"] = str(item["created_by"])
+
             if "year" not in item or item.get("year") is None:
                 created_at = item.get("created_at")
                 if created_at is not None:
                     try:
-                        item["year"] = int(created_at.year)
+                        if isinstance(created_at, str):
+                            item["year"] = int(created_at.split("-")[0])
+                        else:
+                            item["year"] = int(created_at.year)
                     except Exception:
                         item["year"] = None
 
@@ -447,8 +615,42 @@ async def read_eb_statement_solar_pdf(
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files allowed")
 
-    unique_name = f"{solar_id or 'file'}_{month or 'm'}_{uuid4().hex}.pdf"
-    file_path = os.path.join(UPLOAD_DIR, unique_name)
+    # Check for duplicate upload (same solar_id, month, and year)
+    conn = get_connection(db_name="solar")
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            """
+            SELECT id FROM solar.eb_statement_solar 
+            WHERE solar_id=%s AND month=%s AND year=%s
+            """,
+            (solar_id, month, year)
+        )
+        existing_record = cursor.fetchone()
+        if existing_record:
+            raise HTTPException(
+                status_code=409, 
+                detail=f"EB Statement (solar) for this ID already exists for {month} {year}. Please delete the existing record first if you want to re-upload."
+            )
+    finally:
+        cursor.close()
+        conn.close()
+
+    # Get Solar Number for naming
+    solar_num = get_solar_number(cursor, solar_id)
+    
+    # Normalize month
+    month_name = normalize_month(month)
+    year_str = str(year) if year else str(__import__('datetime').datetime.now().year)
+
+    # New Structured Path: uploads/eb_statements_solar/year/month
+    target_dir = os.path.join(BASE_DIR, "uploads", "eb_statements_solar", year_str, month_name)
+    os.makedirs(target_dir, exist_ok=True)
+
+    # Filename: solar_number_month_year.pdf
+    clean_solar = re.sub(r'[^a-zA-Z0-9]', '_', solar_num)
+    unique_name = f"{clean_solar}_{month_name}_{year_str}.pdf"
+    file_path = os.path.join(target_dir, unique_name)
 
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
@@ -477,54 +679,22 @@ async def read_eb_statement_solar_pdf(
         # Use current year fallback if none provided
         sel_year = year if year is not None else __import__('datetime').datetime.now().year
 
+        # Use direct INSERT instead of SP to ensure only the header is created.
+        # This prevents premature saving of detail values.
         try:
             cursor.execute(
-                "CALL solar.sp_insert_eb_statement_solar(%s,%s,%s)",
-                (int(solar_id) if solar_id and str(solar_id).isdigit() else solar_id, month, unique_name),
+                "INSERT INTO solar.eb_statement_solar (solar_id, month, year, pdf_file_path, is_submitted, created_by) VALUES (%s, %s, %s, %s, %s, %s)",
+                (int(solar_id) if solar_id and str(solar_id).isdigit() else solar_id, month, sel_year, unique_name, 0, 1),
             )
             conn.commit()
-        except Exception as sp_exc:
-            # Fall back to direct insert when stored procedure signature does not match or fails.
-            print("Warning: sp_insert_eb_statement_solar failed, falling back to direct insert:", sp_exc)
-            try:
-                cursor.execute(
-                    "INSERT INTO solar.eb_statement_solar (solar_id, month, pdf_file_path, is_submitted, created_by) VALUES (%s, %s, %s, %s, %s)",
-                    (int(solar_id) if solar_id and str(solar_id).isdigit() else solar_id, month, unique_name, 0, 1),
-                )
-                conn.commit()
-            except Exception as direct_exc:
-                print("Failed to insert solar.eb_statement_solar directly:", direct_exc)
+            header_id = cursor.lastrowid
+        except Exception as direct_exc:
+            print("Failed to insert solar.eb_statement_solar directly:", direct_exc)
+            raise HTTPException(status_code=500, detail="Failed to create header record")
 
-        cursor.execute(
-            "SELECT id FROM solar.eb_statement_solar WHERE pdf_file_path LIKE %s AND solar_id=%s AND month=%s ORDER BY created_at DESC LIMIT 1",
-            (f"%{unique_name}%", solar_id, month),
-        )
-        row = cursor.fetchone()
-        header_id = row[0] if row else None
-
-        if header_id is None:
-            # fallback if no exact path match (stored path may differ slightly)
-            cursor.execute(
-                "SELECT id FROM solar.eb_statement_solar WHERE solar_id=%s AND month=%s ORDER BY created_at DESC LIMIT 1",
-                (solar_id, month),
-            )
-            row = cursor.fetchone()
-            header_id = row[0] if row else None
-
-        if header_id is None:
-            cursor.execute("SELECT id FROM solar.eb_statement_solar ORDER BY created_at DESC LIMIT 1")
-            row = cursor.fetchone()
-            header_id = row[0] if row else None
-
-        # Persist year if provided by the upload request, to support search by year filters
-        if header_id is not None and sel_year is not None:
-            try:
-                cursor.execute("UPDATE solar.eb_statement_solar SET year=%s WHERE id=%s", (sel_year, header_id))
-                conn.commit()
-            except Exception as year_exc:
-                print("Warning: failed to update year for eb_statement_solar header", year_exc)
     except Exception as exc:
-        print("Failed to insert EB solar record via sp:", exc)
+        print("Failed to create EB solar record:", exc)
+        raise HTTPException(status_code=500, detail=str(exc))
     finally:
         try:
             cursor.close()
@@ -534,7 +704,7 @@ async def read_eb_statement_solar_pdf(
 
     # parse using shared extractor from windmill EB statement module (validate service number vs solar number)
     try:
-        parsed_data = extract_eb_statement_data(file_path, expected_wm)
+        parsed_data = extract_eb_statement_data(file_path, expected_wm, year, month)
     except Exception as parse_err:
         # clean up uploaded file if validation failed
         try:
@@ -571,13 +741,33 @@ async def read_eb_statement_solar_pdf(
 
 
 @router.get("/read-metadata")
-async def read_eb_statement_solar_metadata(filename: str):
+async def read_eb_statement_solar_metadata(filename: str, user: dict = Depends(get_current_user)):
     if ".." in filename or "/" in filename or "\\" in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
 
-    file_path = os.path.join(UPLOAD_DIR, filename)
+    # Check if filename is actually a full path or just a name
+    if os.path.isabs(filename):
+        file_path = filename
+    else:
+        # Try new structure or legacy locations
+        file_path = os.path.join(BASE_DIR, "uploads", "eb_statements_solar", filename) # In case only relative part passed
+        if not os.path.exists(file_path):
+            file_path = os.path.join(UPLOAD_DIR_LEGACY, "solar", filename)
+        if not os.path.exists(file_path):
+            file_path = os.path.join(UPLOAD_DIR_LEGACY, filename)
+        if not os.path.exists(file_path):
+            file_path = os.path.join(BASE_DIR, "uploads", "eb_bills", filename)
     if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File not found")
+        # Fallback 1: parent eb_statements
+        alt_dir1 = os.path.join(BASE_DIR, "uploads", "eb_statements")
+        file_path = os.path.join(alt_dir1, filename)
+    if not os.path.exists(file_path):
+        # Fallback 2: eb_bills
+        alt_dir2 = os.path.join(BASE_DIR, "uploads", "eb_bills")
+        file_path = os.path.join(alt_dir2, filename)
+
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail=f"Solar statement file not found: {filename}")
 
     conn = get_connection(db_name="solar")
     cursor = conn.cursor()
@@ -589,15 +779,19 @@ async def read_eb_statement_solar_metadata(filename: str):
         except Exception:
             solar_id_val = None
 
-        cursor.execute("SELECT id FROM solar.eb_statement_solar WHERE pdf_file_path LIKE %s ORDER BY created_at DESC LIMIT 1", (f"%{filename}%",))
+        cursor.execute("SELECT id, month, year FROM solar.eb_statement_solar WHERE pdf_file_path LIKE %s ORDER BY created_at DESC LIMIT 1", (f"%{filename}%",))
         row = cursor.fetchone()
         header_id = row[0] if row else None
+        db_month = row[1] if row else None
+        db_year = row[2] if row else None
 
         # Try by solar_id if header is not found
         if header_id is None and solar_id_val is not None:
-            cursor.execute("SELECT id FROM solar.eb_statement_solar WHERE solar_id=%s ORDER BY created_at DESC LIMIT 1", (solar_id_val,))
+            cursor.execute("SELECT id, month, year FROM solar.eb_statement_solar WHERE solar_id=%s ORDER BY created_at DESC LIMIT 1", (solar_id_val,))
             row = cursor.fetchone()
             header_id = row[0] if row else None
+            if not db_month: db_month = row[1] if row else None
+            if not db_year: db_year = row[2] if row else None
 
         # Prepare windmill number context
         master_wm = ""
@@ -619,8 +813,11 @@ async def read_eb_statement_solar_metadata(filename: str):
         warning_text = None
         try:
             from app.routers.eb_statement_upload import extract_eb_statement_data
-            parsed_data = extract_eb_statement_data(file_path, master_wm)
+            parsed_data = extract_eb_statement_data(file_path, master_wm, db_year, db_month)
             if isinstance(parsed_data, dict):
+                # Ensure year/month in parsed
+                if db_month: parsed_data["month"] = normalize_month(db_month)
+                if db_year: parsed_data["year"] = db_year
                 warning_text = parsed_data.get("warning") if "warning" in parsed_data else None
         except Exception as parse_exc:
             print("Failed to parse EB statement metadata (read-metadata):", parse_exc)
@@ -694,18 +891,16 @@ async def save_eb_statement_solar_details(
 
             normalized_charge_name = normalize_for_compare(charge_name_norm)
 
-            # 1) Preferred: exact match on master charge_description
+            # 1) Preferred: exact match on master charge_description (no energy_type filter to maximize match rate)
             if charge_name_norm:
                 try:
                     cursor.execute(
                         """
                         SELECT id, charge_description FROM masters.master_consumption_chargers
                         WHERE TRIM(LOWER(charge_description)) = %s
-                          AND TRIM(LOWER(energy_type)) = %s
-                          AND TRIM(LOWER(`type`)) IN (%s, %s)
                         ORDER BY id LIMIT 1
                         """,
-                        (charge_name_norm, energy_type_value, valid_charge_types[0], valid_charge_types[1]),
+                        (charge_name_norm,),
                     )
                     res = cursor.fetchone()
                     if res:
@@ -715,16 +910,13 @@ async def save_eb_statement_solar_details(
                 except Exception as ce:
                     print(f"Warning: Could not map charge description '{charge.name}' exactly: {ce}")
 
-            # 2) Normalized exact match ignoring spaces/punctuation
+            # 2) Normalized exact match ignoring spaces/punctuation (no energy_type filter)
             if not charge_id and normalized_charge_name:
                 try:
                     cursor.execute(
                         """
                         SELECT id, charge_description FROM masters.master_consumption_chargers
-                        WHERE TRIM(LOWER(energy_type)) = %s
-                          AND TRIM(LOWER(`type`)) IN (%s, %s)
-                        """,
-                        (energy_type_value, valid_charge_types[0], valid_charge_types[1]),
+                        """
                     )
                     for mid, mdesc in cursor.fetchall():
                         if normalize_for_compare(mdesc) == normalized_charge_name:
@@ -735,18 +927,16 @@ async def save_eb_statement_solar_details(
                 except Exception as ce:
                     print(f"Warning: Could not map charge description '{charge.name}' by normalized exact: {ce}")
 
-            # 3) Fallback: match using provider-complete phrase
+            # 3) Fallback: LIKE match (no energy_type filter)
             if not charge_id and charge_name_norm:
                 try:
                     cursor.execute(
                         """
                         SELECT id, charge_description FROM masters.master_consumption_chargers
                         WHERE TRIM(LOWER(charge_description)) LIKE %s
-                          AND TRIM(LOWER(energy_type)) = %s
-                          AND TRIM(LOWER(`type`)) IN (%s, %s)
                         ORDER BY CHAR_LENGTH(charge_description) DESC, id LIMIT 1
                         """,
-                        (f"%{charge_name_norm}%", energy_type_value, valid_charge_types[0], valid_charge_types[1]),
+                        (f"%{charge_name_norm}%",),
                     )
                     res = cursor.fetchone()
                     if res:

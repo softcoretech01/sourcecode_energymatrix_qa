@@ -1,46 +1,61 @@
 import pymysql
 import os
+import re
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from urllib.parse import quote_plus
+
 load_dotenv()
 
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = int(os.getenv("DB_PORT", "3306"))
+# Database Configuration from .env
+DB_HOST = os.getenv("DB_HOST", "187.127.131.38")
+DB_PORT = int(os.getenv("DB_PORT", "3312"))
 DB_USER = os.getenv("DB_USER", "root")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "Ener9y_Demo#2026")
 DB_NAME = os.getenv("DB_NAME", "masters")
 DB_NAME_SOLAR = os.getenv("DB_NAME_SOLAR", "solar")
 DB_NAME_WINDMILL = os.getenv("DB_NAME_WINDMILL", "windmill")
 
-CONNECT_TIMEOUT = 10
-READ_TIMEOUT = 30
-
-# Initial database creation is now handled inside initialize_database()
+# Timeouts for remote connection (Laptop to VPS)
+CONNECT_TIMEOUT = 60
+READ_TIMEOUT = 60
 
 # Escape password for connection URL
 db_password_escaped = quote_plus(DB_PASSWORD)
 
-# SQLAlchemy Engines & Session configuration
+# --- SQLAlchemy Engines Configuration ---
+# pool_pre_ping: Verifies connection is alive before every query
+# pool_recycle: Refreshes connection every 5 mins (staying under the VPS 10-min limit)
+engine_params = {
+    "connect_args": {
+        "connect_timeout": CONNECT_TIMEOUT, 
+        "read_timeout": READ_TIMEOUT
+    },
+    "pool_pre_ping": True,
+    "pool_recycle": 300,  
+    "pool_size": 5,
+    "max_overflow": 10
+}
+
 engine_masters = create_engine(
     f"mysql+pymysql://{DB_USER}:{db_password_escaped}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
-    connect_args={"connect_timeout": CONNECT_TIMEOUT, "read_timeout": READ_TIMEOUT}
+    **engine_params
 )
 engine_windmill = create_engine(
     f"mysql+pymysql://{DB_USER}:{db_password_escaped}@{DB_HOST}:{DB_PORT}/{DB_NAME_WINDMILL}",
-    connect_args={"connect_timeout": CONNECT_TIMEOUT, "read_timeout": READ_TIMEOUT}
+    **engine_params
 )
 engine_solar = create_engine(
     f"mysql+pymysql://{DB_USER}:{db_password_escaped}@{DB_HOST}:{DB_PORT}/{DB_NAME_SOLAR}",
-    connect_args={"connect_timeout": CONNECT_TIMEOUT, "read_timeout": READ_TIMEOUT}
+    **engine_params
 )
 
 SessionLocalMasters = sessionmaker(autocommit=False, autoflush=False, bind=engine_masters)
 SessionLocalWindmill = sessionmaker(autocommit=False, autoflush=False, bind=engine_windmill)
 SessionLocalSolar = sessionmaker(autocommit=False, autoflush=False, bind=engine_solar)
 
-# Bases for models to inherit from
+# Bases for models
 BaseMasters = declarative_base()
 BaseWindmill = declarative_base()
 BaseSolar = declarative_base()
@@ -60,10 +75,7 @@ def get_db_solar():
         db.close()
 
 def get_connection(db_name=None):
-    """
-    Returns a native pymysql connection. 
-    Defaults to DB_NAME since most routers interact with it.
-    """
+    """Returns a native pymysql connection for raw queries."""
     if db_name is None:
         db_name = DB_NAME
     return pymysql.connect(
@@ -97,26 +109,22 @@ def initialize_database():
         init_cursor.execute(f"CREATE DATABASE IF NOT EXISTS {DB_NAME_SOLAR}")
         init_cursor.close()
         init_conn.close()
-        print("Databases ensure/created.")
+        print("Databases ensured/created.")
     except Exception as e:
         print(f"Failed to ensure databases on startup: {e}")
 
-
-   
     # IMPORT all models here to register them with metadata
     from app.models import customer_masters, master_models, windmill_masters, windmill_models
 
-    # 1. Create all Tables based on defined models
-    print("Creating SQLAlchemy tables for Masters...")
+    # 1. Create all Tables
+    print("Creating SQLAlchemy tables...")
     BaseMasters.metadata.create_all(bind=engine_masters)
-    print("Creating SQLAlchemy tables for Windmill...")
     BaseWindmill.metadata.create_all(bind=engine_windmill)
     print("All SQLAlchemy tables have been created.")
 
-    # 2. Initialize Stored Procedures from the stored_procedure folder
+    # 2. Initialize Stored Procedures
     sp_dir = os.path.join(os.path.dirname(__file__), "stored_procedure")
     if os.path.exists(sp_dir):
-        # We now organize SPs into subdirectories named after the database
         db_map = {
             "masters": DB_NAME,
             "windmill": DB_NAME_WINDMILL
@@ -130,7 +138,7 @@ def initialize_database():
             try:
                 conn = get_connection(db_name=db_to_init)
                 cursor = conn.cursor()
-                print(f"Initializing stored procedures for database: {db_to_init} from folder: {folder_name}")
+                print(f"Initializing SPs for: {db_to_init}")
                 
                 for filename in os.listdir(folder_path):
                     if filename.endswith(".sql"):
@@ -138,37 +146,24 @@ def initialize_database():
                         with open(file_path, "r", encoding="utf-8") as f:
                             content = f.read()
                             
-                            # Robustly detect and handle delimiters (// or $$)
-                            import re
-                            
-                            # Standardize to // or $$ or just ;
                             delimiter = ';'
-                            if 'DELIMITER //' in content:
-                                delimiter = '//'
-                            elif 'DELIMITER $$' in content:
-                                delimiter = '$$'
-                                
-                            # Remove DELIMITER lines
-                            content = re.sub(r"DELIMITER\s+\S+", "", content)
-                            content = re.sub(r"DELIMITER\s+;", "", content) # Ensure ; is cleaned if present
+                            if 'DELIMITER //' in content: delimiter = '//'
+                            elif 'DELIMITER $$' in content: delimiter = '$$'
                             
-                            # Split by the detected delimiter
+                            content = re.sub(r"DELIMITER\s+\S+", "", content)
                             statements = content.split(delimiter)
                             
                             for statement in statements:
-                                clean_statement = statement.strip()
-                                # Remove any trailing delimiter character that might have been missed
-                                if clean_statement.endswith(';'):
-                                    clean_statement = clean_statement[:-1].strip()
-                                
-                                if clean_statement:
+                                clean_s = statement.strip()
+                                if clean_s.endswith(';'): clean_s = clean_s[:-1].strip()
+                                if clean_s:
                                     try:
-                                        cursor.execute(clean_statement)
+                                        cursor.execute(clean_s)
                                     except Exception as e:
-                                        print(f"Error executing SP from {filename} in {db_to_init}: {e}")
+                                        print(f"Error in {filename}: {e}")
                 conn.commit()
                 cursor.close()
                 conn.close()
             except Exception as dbe:
-                print(f"Failed to connect to {db_to_init} for SP initialization: {dbe}")
+                print(f"Failed to connect to {db_to_init} for SP: {dbe}")
         print("Stored procedures initialization complete.")

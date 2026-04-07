@@ -13,18 +13,26 @@ import re
 router = APIRouter(prefix="/eb", tags=["EB Statements"])
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
-UPLOAD_DIR = os.path.join(BASE_DIR, "uploads", "eb_statements")
+UPLOAD_DIR_LEGACY = os.path.join(BASE_DIR, "uploads", "eb_statements")
 
-os.makedirs(UPLOAD_DIR, exist_ok=True)
+def normalize_month(month_val):
+    month_names = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    if str(month_val).isdigit():
+        idx = int(month_val)
+        if 1 <= idx <= 12:
+            return month_names[idx-1]
+    return str(month_val).capitalize()
 
-def extract_eb_statement_data(pdf_path, expected_windmill_no):
+def extract_eb_statement_data(pdf_path, expected_windmill_no, expected_year=None, expected_month=None):
     data = {
         "company_name": None,
         "windmill_number": None,
         "slots": {"C1": "0", "C2": "0", "C4": "0", "C5": "0"},
         "banking_slots": {"C1": "0", "C2": "0", "C4": "0", "C5": "0"},
         "banking_units": "0",
-        "charges": []
+        "charges": [],
+        "month": expected_month,
+        "year": expected_year
     }
 
     with pdfplumber.open(pdf_path) as pdf:
@@ -49,15 +57,15 @@ def extract_eb_statement_data(pdf_path, expected_windmill_no):
             if m_alt:
                 data["windmill_number"] = m_alt.group(1)
 
-        # 3. Net Units (Slot-wise) - Target the "Net Units" summary line
+        # 3. Net Units (Slot-wise) - Target the "Net Units" or "Slot Wise Net Generation" summary line
         # Using a more flexible regex to handle spacing and optional colons
-        m_nets = re.search(r"Net Units\s+C1[:\s]+([\d.]+)\s+C2[:\s]+([\d.]+)\s+C3[:\s]+([\d.]+)\s+C4[:\s]+([\d.]+)\s+C5[:\s]+([\d.]+)", full_text, re.IGNORECASE)
+        m_nets = re.search(r"(?:Net Units|Slot\s*Wise\s*Net\s*Generation)\s*.*?(?:C1|C 1)[:\s]+([\d,.]+)\s+(?:C2|C 2)[:\s]+([\d,.]+)\s+(?:C3|C 3)[:\s]+([\d,.]+)\s+(?:C4|C 4)[:\s]+([\d,.]+)\s+(?:C5|C 5)[:\s]+([\d,.]+)", full_text, re.IGNORECASE | re.DOTALL)
         if m_nets:
-            data["slots"]["C1"] = m_nets.group(1)
-            data["slots"]["C2"] = m_nets.group(2)
+            data["slots"]["C1"] = m_nets.group(1).replace(",", "")
+            data["slots"]["C2"] = m_nets.group(2).replace(",", "")
             # C3 is intentionally ignored as per request
-            data["slots"]["C4"] = m_nets.group(4)
-            data["slots"]["C5"] = m_nets.group(5)
+            data["slots"]["C4"] = m_nets.group(4).replace(",", "")
+            data["slots"]["C5"] = m_nets.group(5).replace(",", "")
         else:
             # Fallback: Try to find slot values anywhere if the specific line format differs
             for slot in ["C1", "C2", "C4", "C5"]:
@@ -70,13 +78,13 @@ def extract_eb_statement_data(pdf_path, expected_windmill_no):
                     data["slots"][slot] = matches[-1]
 
         # 4. Banking Units (Slot-wise & Total)
-        m_bank_slots = re.search(r"Banking Units\s+C1[:\s]+([\d.]+)\s+C2[:\s]+([\d.]+)\s+C3[:\s]+([\d.]+)\s+C4[:\s]+([\d.]+)\s+C5[:\s]+([\d.]+)", full_text, re.IGNORECASE)
+        m_bank_slots = re.search(r"(?:Banking Units|Slot\s*Wise\s*Banking\s*Units)\s*.*?(?:C1|C 1)[:\s]+([\d,.]+)\s+(?:C2|C 2)[:\s]+([\d,.]+)\s+(?:C3|C 3)[:\s]+([\d,.]+)\s+(?:C4|C 4)[:\s]+([\d,.]+)\s+(?:C5|C 5)[:\s]+([\d,.]+)", full_text, re.IGNORECASE | re.DOTALL)
         if m_bank_slots:
-            data["banking_slots"]["C1"] = m_bank_slots.group(1)
-            data["banking_slots"]["C2"] = m_bank_slots.group(2)
+            data["banking_slots"]["C1"] = m_bank_slots.group(1).replace(",", "")
+            data["banking_slots"]["C2"] = m_bank_slots.group(2).replace(",", "")
             # C3 captured but we'll remove it from display
-            data["banking_slots"]["C4"] = m_bank_slots.group(4)
-            data["banking_slots"]["C5"] = m_bank_slots.group(5)
+            data["banking_slots"]["C4"] = m_bank_slots.group(4).replace(",", "")
+            data["banking_slots"]["C5"] = m_bank_slots.group(5).replace(",", "")
 
         m_bank_total = re.search(r"Total\s*Banking\s*Units\s*[:\s]+([\d,.]+)", full_text, re.IGNORECASE)
         if m_bank_total:
@@ -117,6 +125,7 @@ def extract_eb_statement_data(pdf_path, expected_windmill_no):
 
 
     # Validation
+    # Validation
     if data["windmill_number"] and expected_windmill_no:
         pdf_wm = re.sub(r"\D", "", str(data["windmill_number"]))
         expected_wm = re.sub(r"\D", "", str(expected_windmill_no))
@@ -124,9 +133,38 @@ def extract_eb_statement_data(pdf_path, expected_windmill_no):
         if pdf_wm != expected_wm:
             # We check if one contains the other (e.g. 12 digits vs 10 digits)
             if pdf_wm not in expected_wm and expected_wm not in pdf_wm:
-                raise Exception(f"Windmill No mismatch! PDF has {data['windmill_number']}, but you selected {expected_windmill_no}")
-    
+                raise Exception(f"Mismatch: PDF Windmill No ({data['windmill_number']}) does not match selected ({expected_windmill_no})")
+                
+    if expected_month:
+        month_names = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"]
+        # If expected_month is a digit like '3', get 'march' / 'mar'
+        if str(expected_month).isdigit() and 1 <= int(expected_month) <= 12:
+            idx = int(expected_month) - 1
+            long_names = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"]
+            short_month = month_names[idx]
+            long_month = long_names[idx]
+            display_name = long_month.capitalize()
+        else:
+            long_month = str(expected_month).lower()
+            short_month = long_month[:3]
+            display_name = str(expected_month).capitalize()
+            
+        # Use regex to match exactly 'march' or 'mar' as a whole word to prevent matching "margin"!
+        if not re.search(rf"\b({short_month}|{long_month})\b", full_text.lower()):
+            raise Exception(f"Mismatch: PDF does not appear to be for Month '{display_name}'")
+                
+    if expected_year:
+        # Use word boundaries so "2026" doesn't match inside "120264"
+        if not re.search(rf"\b{expected_year}\b", full_text):
+            raise Exception(f"Mismatch: PDF does not appear to be for Year '{expected_year}'")
+
+    if expected_month:
+        data["month"] = normalize_month(expected_month)
+    if expected_year:
+        data["year"] = expected_year
+
     return data
+
 
 
 @router.post("/upload", response_model=EBStatementUploadResponse)
@@ -148,14 +186,38 @@ async def upload_eb_statement(
         # Validate windmill
         validate_windmill(cursor, windmill_id)
 
-        # Get Windmill Number for validation before saving
+        # Check for duplicate upload (same windmill, month, and year)
+        cursor.execute(
+            """
+            SELECT id FROM windmill.eb_statements 
+            WHERE windmill_id=%s AND month=%s AND year=%s
+            """,
+            (windmill_id, month, year)
+        )
+        existing_record = cursor.fetchone()
+        if existing_record:
+            raise HTTPException(
+                status_code=409, 
+                detail=f"EB Statement for this windmill already exists for {month} {year}."
+            )
+
+        # Get Windmill Number for validation and naming
         cursor.execute("SELECT windmill_number FROM masters.master_windmill WHERE id=%s", (windmill_id,))
         wm_row = cursor.fetchone()
-        expected_wm_no = wm_row[0] if wm_row else ""
+        windmill_number = wm_row[0] if wm_row else str(windmill_id)
+        
+        # Normalize month for folder and filename
+        month_name = normalize_month(month)
+        
+        # New Structured Path: uploads/eb_statements_windmill/year/month
+        year_str = str(year)
+        target_dir = os.path.join(BASE_DIR, "uploads", "eb_statements_windmill", year_str, month_name)
+        os.makedirs(target_dir, exist_ok=True)
 
-        # Create unique filename
-        unique_name = f"{windmill_id}_{month}_{uuid4().hex}.pdf"
-        file_path = os.path.join(UPLOAD_DIR, unique_name)
+        # Filename: Windmill_number_month_year.pdf
+        clean_wm = re.sub(r'[^a-zA-Z0-9]', '_', windmill_number)
+        unique_name = f"{clean_wm}_{month_name}_{year_str}.pdf"
+        file_path = os.path.join(target_dir, unique_name)
 
         # Save PDF
         with open(file_path, "wb") as buffer:
@@ -163,30 +225,35 @@ async def upload_eb_statement(
 
         # Parse PDF Data
         try:
-            parsed_data = extract_eb_statement_data(file_path, expected_wm_no)
+            parsed_data = extract_eb_statement_data(file_path, windmill_number, year, month)
         except Exception as pe:
             if os.path.exists(file_path):
                 os.remove(file_path)
             raise HTTPException(status_code=400, detail=str(pe))
 
-        # Call Stored Procedure
-        cursor.callproc(
-            "sp_insert_eb_statement",
-            (
-                windmill_id,
-                year,
-                month,
-                file_path
+        # Use direct INSERT instead of SP to ensure only the header is created.
+        # This prevents premature saving of detail values.
+        header_id = None
+        try:
+            cursor.execute(
+                """
+                INSERT INTO windmill.eb_statements 
+                (windmill_id, month, year, pdf_file_path, is_submitted, created_by, created_at, modified_at)
+                VALUES (%s, %s, %s, %s, 0, 1, NOW(), NOW())
+                """,
+                (windmill_id, month, year, file_path)
             )
-        )
-
-        conn.commit()
+            conn.commit()
+            header_id = cursor.lastrowid
+        except Exception as direct_exc:
+            print(f"Error: Direct INSERT failed: {direct_exc}")
+            raise HTTPException(status_code=500, detail="Failed to create header record")
 
         return {
-            "message": "EB Statement uploaded successfully",
+            "message": "EB Statement uploaded and header created",
             "filename": unique_name,
             "parsed_data": parsed_data,
-            "header_id": cursor.lastrowid # This might not be accurate if SP doesn't return it easily, but let's check
+            "header_id": header_id
         }
 
     except Exception as e:
@@ -209,13 +276,31 @@ async def get_eb_statement_list(
     cursor = conn.cursor()
 
     try:
-        # Standardize "all" to None for SP
-        p_wm = None if not windmill_number or windmill_number == "all" else windmill_number
-        p_yr = None if not year or year == "all" else year # handled by type hint too
-        p_mo = None if not month or month == "all" else month
-        p_kw = None if not keyword else keyword
-
-        cursor.callproc("get_eb_statement_list", (p_wm, p_yr, p_mo, p_kw))
+        # Build dynamic query with windmill_number from masters table, created_at, and user name
+        query = """
+            SELECT es.id, es.month, es.year, mw.windmill_number, es.pdf_file_path, es.is_submitted, es.created_at, u.name
+            FROM windmill.eb_statements es
+            LEFT JOIN masters.master_windmill mw ON es.windmill_id = mw.id
+            LEFT JOIN masters.users u ON es.created_by = u.id
+            WHERE 1=1
+        """
+        params = []
+        
+        if windmill_number and windmill_number != "all":
+            query += " AND mw.windmill_number = %s"
+            params.append(windmill_number)
+        
+        if year and year != "all":
+            query += " AND es.year = %s"
+            params.append(year)
+        
+        if month and month != "all":
+            query += " AND es.month = %s"
+            params.append(month)
+        
+        query += " ORDER BY es.created_at DESC"
+        
+        cursor.execute(query, params)
         result = cursor.fetchall()
 
         data = []
@@ -226,7 +311,9 @@ async def get_eb_statement_list(
                 "year": row[2],
                 "windmill_number": row[3],
                 "pdf": row[4],
-                "is_submitted": row[5]
+                "is_submitted": row[5],
+                "created_at": row[6],
+                "created_by": row[7]
             })
 
         return {
@@ -245,9 +332,19 @@ async def read_eb_statement_metadata(filename: str, user: dict = Depends(get_cur
     if ".." in filename or "/" in filename or "\\" in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
 
-    file_path = os.path.join(UPLOAD_DIR, filename)
+    # Check if filename is full path or just name
+    if os.path.isabs(filename):
+        file_path = filename
+    else:
+        # Fallback search
+        file_path = os.path.join(BASE_DIR, "uploads", "eb_statements_windmill", filename)
+        if not os.path.exists(file_path):
+            file_path = os.path.join(UPLOAD_DIR_LEGACY, filename)
+        if not os.path.exists(file_path):
+            file_path = os.path.join(BASE_DIR, "uploads", "eb_bills", filename)
+        
     if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File not found")
+        raise HTTPException(status_code=404, detail=f"File not found: {filename}")
 
     try:
         # Extract windmill_id from filename (format: {windmill_id}_{month}_{uuid}.pdf)
@@ -260,12 +357,20 @@ async def read_eb_statement_metadata(filename: str, user: dict = Depends(get_cur
         wm_row = cursor.fetchone()
         expected_wm_no = wm_row[0] if wm_row else ""
 
-        # Get header ID from db
-        cursor.execute("SELECT id FROM windmill.eb_statements WHERE pdf_file_path LIKE %s", (f"%{filename}%",))
+        # Get header ID, month, and year from db
+        cursor.execute("SELECT id, month, year FROM windmill.eb_statements WHERE pdf_file_path LIKE %s", (f"%{filename}%",))
         h_row = cursor.fetchone()
         header_id = h_row[0] if h_row else None
+        db_month = h_row[1] if h_row else None
+        db_year = h_row[2] if h_row else None
 
         parsed_data = extract_eb_statement_data(file_path, expected_wm_no)
+        
+        # Merge DB month/year into parsed_data if missing
+        if isinstance(parsed_data, dict):
+            if db_month: parsed_data["month"] = db_month
+            if db_year: parsed_data["year"] = db_year
+
         return {
             "status": "success",
             "data": parsed_data,
@@ -275,6 +380,75 @@ async def read_eb_statement_metadata(filename: str, user: dict = Depends(get_cur
         print(f"Error in read_eb_statement_metadata: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/details/{header_id}")
+async def get_eb_statement_details(header_id: int, user: dict = Depends(get_current_user)):
+    conn = get_connection(db_name=DB_NAME_WINDMILL)
+    cursor = conn.cursor()
+    try:
+        # 1. Fetch slots and banking units
+        cursor.execute(
+            """
+            SELECT slots, net_unit, banking_units 
+            FROM windmill.eb_statements_details 
+            WHERE eb_header_id = %s
+            """,
+            (header_id,)
+        )
+        details_rows = cursor.fetchall()
+        
+        slots = {}
+        banking_slots = {}
+        for row in details_rows:
+            s_key = f"C{row[0]}"
+            slots[s_key] = str(row[1])
+            banking_slots[s_key] = str(row[2])
+
+        # 2. Fetch total banking units
+        cursor.execute(
+            "SELECT total_banking_units FROM windmill.eb_statements_total_banking_units WHERE eb_header_id = %s",
+            (header_id,)
+        )
+        tb_row = cursor.fetchone()
+        banking_units = str(tb_row[0]) if tb_row else "0"
+
+        # 3. Fetch charges (join with master table if possible, otherwise use stored description)
+        cursor.execute(
+            """
+            SELECT a.charge_id, a.charge_description, a.total_charge, m.charge_name, m.charge_code
+            FROM windmill.eb_statements_applicable_charges a
+            LEFT JOIN masters.master_consumption_chargers m ON a.charge_id = m.id
+            WHERE a.eb_header_id = %s
+            """,
+            (header_id,)
+        )
+        charges_rows = cursor.fetchall()
+        
+        charges = []
+        for row in charges_rows:
+            # use master name if exists, else stored description
+            name = row[3] if row[3] else row[1]
+            charges.append({
+                "name": name,
+                "amount": str(row[2]),
+                "code": row[4] if row[4] else None
+            })
+
+        return {
+            "status": "success",
+            "data": {
+                "slots": slots,
+                "banking_slots": banking_slots,
+                "banking_units": banking_units,
+                "charges": charges
+            }
+        }
+    except Exception as e:
+        print(f"Error in get_eb_statement_details: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
+        conn.close()
+
 
 @router.get("/windmills")
 async def get_windmills(user: dict = Depends(get_current_user)):
@@ -283,8 +457,8 @@ async def get_windmills(user: dict = Depends(get_current_user)):
     cursor = conn.cursor()
 
     try:
-        # Filter by type = 'windmill' to show only windmill type records
-        cursor.execute("SELECT id, windmill_number FROM masters.master_windmill WHERE type = 'windmill' ORDER BY windmill_number")
+        # Filter by type = 'windmill' and posted status to show only active windmill type records
+        cursor.execute("SELECT id, windmill_number FROM masters.master_windmill WHERE LOWER(type) = 'windmill' AND is_submitted = 1 ORDER BY windmill_number")
 
         rows = cursor.fetchall()
 
@@ -400,9 +574,17 @@ async def update_eb_statement(
             if not filename.lower().endswith(".pdf"):
                 raise HTTPException(status_code=400, detail="Only PDF files allowed")
             
+            # Normalize month for folder and filename
+            month_name = normalize_month(month)
+            year_res = __import__('datetime').datetime.now().year # Fallback year
+            
+            # Directory structure: uploads/eb_statements_windmill/year/month
+            target_dir = os.path.join(BASE_DIR, "uploads", "eb_statements_windmill", str(year_res), month_name)
+            os.makedirs(target_dir, exist_ok=True)
+            
             # Create unique filename
-            unique_name = f"{windmill_id}_{month}_{uuid4().hex}.pdf"
-            new_pdf_path = os.path.join(UPLOAD_DIR, unique_name)
+            unique_name = f"{windmill_id}_{month_name}_{uuid4().hex}.pdf"
+            new_pdf_path = os.path.join(target_dir, unique_name)
 
             # Save New PDF
             with open(new_pdf_path, "wb") as buffer:
@@ -508,10 +690,8 @@ async def save_eb_statement_details(
                     cursor.execute(
                         "SELECT id FROM masters.master_consumption_chargers "
                         "WHERE TRIM(LOWER(charge_description)) LIKE %s "
-                        "AND TRIM(LOWER(energy_type)) = %s "
-                        "AND TRIM(LOWER(`type`)) IN (%s, %s) "
                         "LIMIT 1",
-                        (f"%{charge_name_norm}%", energy_type_value, valid_charge_types[0], valid_charge_types[1])
+                        (f"%{charge_name_norm}%",)
                     )
                     res = cursor.fetchone()
                     if res:
@@ -525,10 +705,8 @@ async def save_eb_statement_details(
                     cursor.execute(
                         "SELECT id FROM masters.master_consumption_chargers "
                         "WHERE TRIM(LOWER(charge_code)) = %s "
-                        "AND TRIM(LOWER(energy_type)) = %s "
-                        "AND TRIM(LOWER(`type`)) IN (%s, %s) "
                         "LIMIT 1",
-                        (charge_code_norm, energy_type_value, valid_charge_types[0], valid_charge_types[1])
+                        (charge_code_norm,)
                     )
                     res = cursor.fetchone()
                     if res:
@@ -536,21 +714,16 @@ async def save_eb_statement_details(
                 except Exception as ce:
                     print(f"Warning: Could not map charge code '{charge.code}': {ce}")
 
-            # 3) Fallback: match on charge name/code if still missing
+            # 3) Fallback: match on charge name if still missing
             if not charge_id:
                 try:
                     cursor.execute(
                         "SELECT id FROM masters.master_consumption_chargers "
                         "WHERE (TRIM(LOWER(charge_name)) LIKE %s OR TRIM(LOWER(charge_code)) LIKE %s) "
-                        "AND TRIM(LOWER(energy_type)) = %s "
-                        "AND TRIM(LOWER(`type`)) IN (%s, %s) "
                         "LIMIT 1",
                         (
-                            f"%{charge_name_norm}%", 
-                            f"%{charge_name_norm}%", 
-                            energy_type_value, 
-                            valid_charge_types[0], 
-                            valid_charge_types[1]
+                            f"%{charge_name_norm}%",
+                            f"%{charge_name_norm}%",
                         )
                     )
                     res = cursor.fetchone()
@@ -583,5 +756,78 @@ async def save_eb_statement_details(
         print(error_trace)
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
     finally:
-        cursor.close()
         conn.close()
+
+@router.get("/summary/by-month")
+async def get_eb_statement_summary_by_month(
+    year: int,
+    month: str,
+    user: dict = Depends(get_current_user)
+):
+    """
+    Get aggregated EB Statement slot values (Power Plant and Banking)
+    for all windmills for a specific month and year.
+    Used by the Energy Allotment grid to populate available values.
+    """
+    import pymysql
+
+    # Convert numeric month string to month name (e.g. "1" -> "January")
+    month_names = {
+        "1": "January", "2": "February", "3": "March", "4": "April",
+        "5": "May", "6": "June", "7": "July", "8": "August",
+        "9": "September", "10": "October", "11": "November", "12": "December"
+    }
+    db_month = month_names.get(str(month), month)
+    print(f"[EB Summary] Fetching for year={year}, month={db_month}")
+
+    conn = get_connection(db_name=DB_NAME_WINDMILL)
+    cursor = conn.cursor()
+    try:
+        query = """
+            SELECT 
+                mw.windmill_number,
+                d.slots AS slot,
+                d.net_unit AS pp_units,
+                d.banking_units AS bank_units
+            FROM windmill.eb_statements es
+            JOIN masters.master_windmill mw ON es.windmill_id = mw.id
+            JOIN windmill.eb_statements_details d ON es.id = d.eb_header_id
+            WHERE es.year = %s AND es.month = %s
+        """
+        cursor.execute(query, (year, db_month))
+        rows = cursor.fetchall()
+        print(f"[EB Summary] Found {len(rows)} detail rows")
+
+        # Slot number to column key: 1->c1, 2->c2, 4->c4, 5->c5 (3 is skipped)
+        slot_to_col = {1: "c1", 2: "c2", 4: "c4", 5: "c5"}
+
+        # Build result map: windmill_number -> {c1_pp, c1_bank, c2_pp, ...}
+        result_map = {}
+        for row in rows:
+            wm = str(row[0])          # windmill_number
+            slot = int(row[1])        # slot number (1,2,3,4,5)
+            pp_units = float(row[2]) if row[2] else 0.0
+            bank_units = float(row[3]) if row[3] else 0.0
+
+            if wm not in result_map:
+                result_map[wm] = {}
+
+            col = slot_to_col.get(slot)
+            if col:
+                result_map[wm][f"{col}_pp"] = pp_units
+                result_map[wm][f"{col}_bank"] = bank_units
+
+        print(f"[EB Summary] Result: {result_map}")
+
+        return {
+            "status": "success",
+            "data": result_map
+        }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        print(f"[EB Summary] Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
+        conn.close()

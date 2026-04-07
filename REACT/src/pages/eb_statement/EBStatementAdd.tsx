@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { ArrowLeft, UploadCloud } from "lucide-react";
+import { ArrowLeft, UploadCloud, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
     Select,
@@ -8,6 +8,14 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogFooter,
+} from "@/components/ui/dialog";
 import { useNavigate } from "react-router-dom";
 import api from "@/services/api";
 import { toast } from "sonner";
@@ -19,13 +27,20 @@ interface Windmill {
 
 export default function EBStatementAdd() {
     const navigate = useNavigate();
-
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [selectedWindmillId, setSelectedWindmillId] = useState<string>("");
-    const [selectedMonth, setSelectedMonth] = useState("");
+    const [selectedMonth, setSelectedMonth] = useState(() => {
+        const monthsNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        const now = new Date();
+        const prevMonthIdx = now.getMonth() - 1;
+        return prevMonthIdx >= 0 ? monthsNames[prevMonthIdx] : "";
+    });
     const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
     const [windmills, setWindmills] = useState<Windmill[]>([]);
     const [uploading, setUploading] = useState(false);
+    const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
+    const [duplicateMessage, setDuplicateMessage] = useState("");
+    const [forcingUpload, setForcingUpload] = useState(false);
 
     const currentYear = new Date().getFullYear();
     const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
@@ -119,17 +134,36 @@ export default function EBStatementAdd() {
 
             if (res.data.filename) {
                 toast.success("EB Statement uploaded successfully");
-                // Open in a new tab
-                window.open(`/eb-statement/pdf?file=${res.data.filename}`, "_blank");
+                // Store data in sessionStorage then navigate within same tab
+                sessionStorage.setItem("ebStatementFile", res.data.filename);
+                if (res.data.header_id) {
+                    sessionStorage.setItem("ebStatementHeaderId", String(res.data.header_id));
+                }
+                if (res.data.parsed_data) {
+                    sessionStorage.setItem("ebStatementParsedData", JSON.stringify(res.data.parsed_data));
+                }
+                navigate(`/eb-statement/pdf?file=${res.data.filename}`);
             } else {
                 toast.error(res.data.message || "Upload failed");
             }
         } catch (err: any) {
             console.error(err);
-            toast.error(err.response?.data?.detail || "Upload failed. Check backend.");
+            // Check if conflict (duplicate upload) error
+            if (err.response?.status === 409) {
+                setDuplicateMessage(err.response?.data?.detail || `EB Statement for ${selectedMonth} ${selectedYear} already exists`);
+                setShowDuplicateDialog(true);
+            } else {
+                toast.error(err.response?.data?.detail || "Upload failed. Check backend.");
+            }
         } finally {
             setUploading(false);
         }
+    };
+
+    const handleProceedUpload = async () => {
+        // In future, you could implement force upload by calling a different endpoint
+        toast.info("To replace the existing statement, please delete it first from the list");
+        setShowDuplicateDialog(false);
     };
 
     return (
@@ -212,11 +246,17 @@ export default function EBStatementAdd() {
                                         <SelectValue placeholder="Select Month" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {months.map((m) => (
-                                            <SelectItem key={m.value} value={m.value}>
-                                                {m.label}
-                                            </SelectItem>
-                                        ))}
+                                        {months
+                                            .filter((_, index) => {
+                                                const now = new Date();
+                                                const isCurrentYear = parseInt(selectedYear) === now.getFullYear();
+                                                return isCurrentYear ? index < now.getMonth() : true;
+                                            })
+                                            .map((m) => (
+                                                <SelectItem key={m.value} value={m.value}>
+                                                    {m.label}
+                                                </SelectItem>
+                                            ))}
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -261,6 +301,39 @@ export default function EBStatementAdd() {
                     </div>
                 </div>
             </div>
+
+            {/* Duplicate Upload Warning Dialog */}
+            <Dialog open={showDuplicateDialog} onOpenChange={setShowDuplicateDialog}>
+                <DialogContent className="max-w-sm">
+                    <DialogHeader>
+                        <div className="flex items-center gap-2">
+                            <AlertCircle className="h-5 w-5 text-red-600" />
+                            <DialogTitle>Duplicate Upload Detected</DialogTitle>
+                        </div>
+                        <DialogDescription className="pt-3">
+                            {duplicateMessage}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setShowDuplicateDialog(false)}
+                            className="mr-2"
+                        >
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={() => {
+                                setShowDuplicateDialog(false);
+                                navigate("/eb-statement");
+                            }}
+                            className="bg-blue-600 hover:bg-blue-700"
+                        >
+                            Go to Statements List
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

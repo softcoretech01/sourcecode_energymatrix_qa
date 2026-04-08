@@ -38,14 +38,14 @@ async def add_customer(data: CustomerCreate, user: dict = Depends(get_current_us
     ))
 
     # retrieve newly inserted id
-    cursor.execute("SELECT LAST_INSERT_ID() AS id")
+    cursor.callproc("sp_get_last_insert_id")
     new_id_row = cursor.fetchone()
     new_id = new_id_row[0] if new_id_row else None
 
     # ensure new customer is active by default, even if stored procedure uses a default inactive state
     if new_id is not None:
         desired_status = data.status if data.status is not None else 1
-        cursor.execute("UPDATE master_customers SET status=%s WHERE id=%s", (desired_status, new_id))
+        cursor.callproc("sp_update_customer_status", (new_id, desired_status))
 
     conn.commit()
 
@@ -148,19 +148,19 @@ async def update_customer(customer_id: int, data: CustomerUpdate, user: dict = D
     # if attempting to post (is_submitted=1) ensure all required child records exist
     if data.is_submitted == 1:
         # check service numbers
-        cursor.execute("SELECT id FROM customer_service WHERE customer_id=%s LIMIT 1", (customer_id,))
+        cursor.callproc("sp_check_customer_service_exists", (customer_id,))
         if cursor.fetchone() is None:
             cursor.close()
             conn.close()
             raise HTTPException(status_code=400, detail="Cannot post customer – at least one service number is required")
         # check contacts
-        cursor.execute("SELECT id FROM customer_contact WHERE customer_id=%s LIMIT 1", (customer_id,))
+        cursor.callproc("sp_check_customer_contact_exists", (customer_id,))
         if cursor.fetchone() is None:
             cursor.close()
             conn.close()
             raise HTTPException(status_code=400, detail="Cannot post customer – at least one contact is required")
         # check agreed units
-        cursor.execute("SELECT id FROM customer_agreed WHERE customer_id=%s LIMIT 1", (customer_id,))
+        cursor.callproc("sp_check_customer_agreed_exists", (customer_id,))
         if cursor.fetchone() is None:
             cursor.close()
             conn.close()
@@ -210,10 +210,7 @@ async def add_se_number(customer_id: int, data: dict, user: dict = Depends(get_c
     validate_customer(cursor, customer_id)
 
     # Ensure service number is unique for this customer only
-    cursor.execute(
-        "SELECT id FROM customer_service WHERE customer_id=%s AND service_number=%s",
-        (customer_id, data["se_number"])
-    )
+    cursor.callproc("sp_check_service_number_duplicate", (customer_id, data["se_number"]))
     if cursor.fetchone():
         cursor.close()
         conn.close()
@@ -258,10 +255,7 @@ async def delete_customer_se(customer_id: int, se_id: int, user: dict = Depends(
 
     validate_customer(cursor, customer_id)
 
-    cursor.execute(
-        "DELETE FROM customer_service WHERE id=%s AND customer_id=%s",
-        (se_id, customer_id),
-    )
+    cursor.callproc("sp_delete_customer_service", (se_id, customer_id))
 
     conn.commit()
     cursor.close()
@@ -280,20 +274,14 @@ async def update_customer_se(customer_id: int, se_id: int, data: dict, user: dic
     validate_customer(cursor, customer_id)
 
     # Ensure row belongs to the customer
-    cursor.execute(
-        "SELECT id FROM customer_service WHERE id=%s AND customer_id=%s",
-        (se_id, customer_id),
-    )
+    cursor.callproc("sp_check_customer_service_by_id", (se_id, customer_id))
     if cursor.fetchone() is None:
         cursor.close()
         conn.close()
         raise HTTPException(status_code=404, detail="Service Number not found for this customer")
 
     # Prevent duplicate service number within the same customer when updating
-    cursor.execute(
-        "SELECT id FROM customer_service WHERE customer_id=%s AND service_number=%s AND id<>%s",
-        (customer_id, data.get("se_number"), se_id),
-    )
+    cursor.callproc("sp_check_service_number_duplicate_exclude", (customer_id, data.get("se_number"), se_id))
     if cursor.fetchone():
         cursor.close()
         conn.close()
@@ -362,10 +350,7 @@ async def update_customer_contact(
 
     validate_customer(cursor, customer_id)
 
-    cursor.execute(
-        "SELECT id FROM customer_contact WHERE id=%s AND customer_id=%s",
-        (contact_id, customer_id),
-    )
+    cursor.callproc("sp_check_customer_contact_by_id", (contact_id, customer_id))
     if cursor.fetchone() is None:
         cursor.close()
         conn.close()
@@ -435,15 +420,7 @@ async def upload_customer_docs(
     }
     prev_cur = conn.cursor(pymysql.cursors.DictCursor)
     try:
-        prev_cur.execute(
-            """SELECT upload_ppa, upload_share_transfer_form_certificate, upload_share_certificate,
-                      pledge_agreement, share_holding_agreement
-               FROM customer_uploads
-               WHERE customer_id = %s
-               ORDER BY id DESC
-               LIMIT 1""",
-            (customer_id,),
-        )
+        prev_cur.callproc("sp_get_latest_customer_upload", (customer_id,))
         row = prev_cur.fetchone()
         if row:
             prev.update(row)

@@ -90,7 +90,7 @@ def update_consumption(id: int, data: ConsumptionCreate, user=Depends(get_curren
 
     try:
         # Preserve existing row values for partial updates (in particular STATUS)
-        cursor.execute("SELECT * FROM master_consumption_chargers WHERE id=%s", (id,))
+        cursor.callproc("sp_get_consumption_by_id", (id,))
         existing = cursor.fetchone()
         if not existing:
             raise HTTPException(status_code=404, detail="Consumption record not found")
@@ -98,40 +98,21 @@ def update_consumption(id: int, data: ConsumptionCreate, user=Depends(get_curren
         status = data.status if data.status is not None else existing.get("status", 1)
         is_submitted = data.is_submitted if data.is_submitted is not None else existing.get("is_submitted", 0)
 
-        cursor.execute(
-            """
-            UPDATE master_consumption_chargers SET
-                energy_type=%s,
-                charge_code=%s,
-                charge_name=%s,
-                cost=%s,
-                uom=%s,
-                type=%s,
-                charge_description=%s,
-                valid_upto=%s,
-                discount_charges=%s,
-                status=%s,
-                is_submitted=%s,
-                modified_by=%s,
-                modified_at=NOW()
-            WHERE id=%s
-            """,
-            (
-                data.energy_type,
-                data.charge_code,
-                data.charge_name,
-                data.cost,
-                data.uom,
-                data.type,
-                data.charge_description,
-                data.valid_upto,
-                data.discount_charges,
-                status,
-                is_submitted,
-                user["id"],
-                id,
-            )
-        )
+        cursor.callproc("sp_update_consumption_record", (
+            id,
+            data.energy_type,
+            data.charge_code,
+            data.charge_name,
+            data.cost,
+            data.uom,
+            data.type,
+            data.charge_description,
+            data.valid_upto,
+            data.discount_charges,
+            status,
+            is_submitted,
+            user["id"]
+        ))
 
         connection.commit()
 

@@ -206,13 +206,7 @@ async def upload_eb_statement(
         validate_windmill(cursor, windmill_id)
 
         # Check for duplicate upload (same windmill, month, and year)
-        cursor.execute(
-            """
-            SELECT id FROM windmill.eb_statements 
-            WHERE windmill_id=%s AND month=%s AND year=%s
-            """,
-            (windmill_id, month, year)
-        )
+        cursor.callproc("windmill.sp_check_eb_statement_duplicate", (windmill_id, month, year))
         existing_record = cursor.fetchone()
         if existing_record:
             raise HTTPException(
@@ -221,7 +215,7 @@ async def upload_eb_statement(
             )
 
         # Get Windmill Number for validation and naming
-        cursor.execute("SELECT windmill_number FROM masters.master_windmill WHERE id=%s", (windmill_id,))
+        cursor.callproc("masters.sp_get_windmill_number_by_id_or_val", (str(windmill_id),))
         wm_row = cursor.fetchone()
         windmill_number = wm_row[0] if wm_row else str(windmill_id)
         
@@ -254,16 +248,13 @@ async def upload_eb_statement(
         # This prevents premature saving of detail values.
         header_id = None
         try:
-            cursor.execute(
-                """
-                INSERT INTO windmill.eb_statements 
-                (windmill_id, month, year, pdf_file_path, is_submitted, created_by, created_at, modified_at)
-                VALUES (%s, %s, %s, %s, 0, 1, NOW(), NOW())
-                """,
-                (windmill_id, month, year, file_path)
+            cursor.callproc(
+                "windmill.sp_create_eb_statement_header",
+                (windmill_id, month, year, file_path, 1)
             )
             conn.commit()
-            header_id = cursor.lastrowid
+            result = cursor.fetchone()
+            header_id = result[0] if result else None
         except Exception as direct_exc:
             print(f"Error: Direct INSERT failed: {direct_exc}")
             raise HTTPException(status_code=500, detail="Failed to create header record")
@@ -295,32 +286,7 @@ async def get_eb_statement_list(
     cursor = conn.cursor()
 
     try:
-        # Build dynamic query with windmill_number from masters table, created_at, and user name
-        query = """
-            SELECT es.id, es.month, es.year, mw.windmill_number, es.pdf_file_path, es.is_submitted, 
-                   COALESCE(es.modified_at, es.created_at) as submitted_time, u.name
-            FROM windmill.eb_statements es
-            LEFT JOIN masters.master_windmill mw ON es.windmill_id = mw.id
-            LEFT JOIN masters.users u ON es.created_by = u.id
-            WHERE 1=1
-        """
-        params = []
-        
-        if windmill_number and windmill_number != "all":
-            query += " AND mw.windmill_number = %s"
-            params.append(windmill_number)
-        
-        if year and year != "all":
-            query += " AND es.year = %s"
-            params.append(year)
-        
-        if month and month != "all":
-            query += " AND es.month = %s"
-            params.append(month)
-        
-        query += " ORDER BY submitted_time DESC"
-        
-        cursor.execute(query, params)
+        cursor.callproc("windmill.sp_get_eb_statement_list", (windmill_number, year, month))
         result = cursor.fetchall()
 
         data = []
@@ -352,38 +318,47 @@ async def read_eb_statement_metadata(filename: str, user: dict = Depends(get_cur
     if ".." in filename or "/" in filename or "\\" in filename:
         raise HTTPException(status_code=400, detail="Invalid filename")
 
-    # Check if filename is full path or just name
-    if os.path.isabs(filename):
-        file_path = filename
-    else:
-        # Fallback search
-        file_path = os.path.join(BASE_DIR, "uploads", "eb_statements_windmill", filename)
-        if not os.path.exists(file_path):
-            file_path = os.path.join(UPLOAD_DIR_LEGACY, filename)
-        if not os.path.exists(file_path):
-            file_path = os.path.join(BASE_DIR, "uploads", "eb_bills", filename)
-        
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail=f"File not found: {filename}")
+    conn = get_connection(db_name=DB_NAME_WINDMILL)
+    cursor = conn.cursor()
 
     try:
-        # Extract windmill_id from filename (format: {windmill_id}_{month}_{uuid}.pdf)
-        parts = filename.split("_")
-        windmill_id = int(parts[0])
-
-        conn = get_connection(db_name=DB_NAME_WINDMILL)
-        cursor = conn.cursor()
-        cursor.execute("SELECT windmill_number FROM masters.master_windmill WHERE id=%s", (windmill_id,))
-        wm_row = cursor.fetchone()
-        expected_wm_no = wm_row[0] if wm_row else ""
-
-        # Get header ID, month, and year from db
-        cursor.execute("SELECT id, month, year FROM windmill.eb_statements WHERE pdf_file_path LIKE %s", (f"%{filename}%",))
+        # 1. Get header ID, month, and year from db
+        cursor.callproc("windmill.sp_get_eb_statement_metadata_by_filename", (filename,))
         h_row = cursor.fetchone()
         header_id = h_row[0] if h_row else None
         db_month = h_row[1] if h_row else None
         db_year = h_row[2] if h_row else None
 
+        # 2. Extract windmill_id from filename (format: {windmill_number}_{month}_{year}.pdf)
+        # Note: parts[0] is clean_wm (number)
+        parts = filename.split("_")
+        windmill_number_from_file = parts[0]
+        
+        # Resolve windmill_number for PDF parsing validation
+        cursor.callproc("masters.sp_get_windmill_number_by_id_or_val", (str(windmill_number_from_file),))
+        wm_row = cursor.fetchone()
+        expected_wm_no = wm_row[0] if wm_row else windmill_number_from_file
+
+        # 3. Determine file path
+        if os.path.isabs(filename):
+            file_path = filename
+        else:
+            file_path = None
+            if db_month and db_year:
+                month_folder = normalize_month(db_month)
+                file_path = os.path.join(BASE_DIR, "uploads", "eb_statements_windmill", str(db_year), month_folder, filename)
+            
+            if not file_path or not os.path.exists(file_path):
+                file_path = os.path.join(BASE_DIR, "uploads", "eb_statements_windmill", filename)
+            if not os.path.exists(file_path):
+                file_path = os.path.join(UPLOAD_DIR_LEGACY, filename)
+            if not os.path.exists(file_path):
+                file_path = os.path.join(BASE_DIR, "uploads", "eb_bills", filename)
+
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail=f"File not found: {filename}")
+
+        # 4. Parse PDF Data
         parsed_data = extract_eb_statement_data(file_path, expected_wm_no)
         
         # Merge DB month/year into parsed_data if missing
@@ -398,7 +373,12 @@ async def read_eb_statement_metadata(filename: str, user: dict = Depends(get_cur
         }
     except Exception as e:
         print(f"Error in read_eb_statement_metadata: {e}")
+        if isinstance(e, HTTPException):
+            raise e
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
+        conn.close()
 
 @router.get("/details/{header_id}")
 async def get_eb_statement_details(header_id: int, user: dict = Depends(get_current_user)):
@@ -406,14 +386,7 @@ async def get_eb_statement_details(header_id: int, user: dict = Depends(get_curr
     cursor = conn.cursor()
     try:
         # 1. Fetch slots and banking units
-        cursor.execute(
-            """
-            SELECT slots, net_unit, banking_units 
-            FROM windmill.eb_statements_details 
-            WHERE eb_header_id = %s
-            """,
-            (header_id,)
-        )
+        cursor.callproc("windmill.sp_get_eb_statement_details_slots", (header_id,))
         details_rows = cursor.fetchall()
         
         slots = {}
@@ -424,23 +397,12 @@ async def get_eb_statement_details(header_id: int, user: dict = Depends(get_curr
             banking_slots[s_key] = str(row[2])
 
         # 2. Fetch total banking units
-        cursor.execute(
-            "SELECT total_banking_units FROM windmill.eb_statements_total_banking_units WHERE eb_header_id = %s",
-            (header_id,)
-        )
+        cursor.callproc("windmill.sp_get_eb_statement_total_banking", (header_id,))
         tb_row = cursor.fetchone()
         banking_units = str(tb_row[0]) if tb_row else "0"
 
         # 3. Fetch charges (join with master table if possible, otherwise use stored description)
-        cursor.execute(
-            """
-            SELECT a.charge_id, a.charge_description, a.total_charge, m.charge_name, m.charge_code
-            FROM windmill.eb_statements_applicable_charges a
-            LEFT JOIN masters.master_consumption_chargers m ON a.charge_id = m.id
-            WHERE a.eb_header_id = %s
-            """,
-            (header_id,)
-        )
+        cursor.callproc("windmill.sp_get_eb_statement_charges", (header_id,))
         charges_rows = cursor.fetchall()
         
         charges = []
@@ -478,7 +440,7 @@ async def get_windmills(user: dict = Depends(get_current_user)):
 
     try:
         # Filter by type = 'windmill' and posted status to show only active windmill type records
-        cursor.execute("SELECT id, windmill_number FROM masters.master_windmill WHERE LOWER(type) = 'windmill' AND is_submitted = 1 ORDER BY windmill_number")
+        cursor.callproc("masters.sp_get_windmill_dropdown_standard")
 
         rows = cursor.fetchall()
 
@@ -507,10 +469,7 @@ async def delete_eb_statement(id: int, user: dict = Depends(get_current_user)):
 
     try:
         # get pdf path before deleting
-        cursor.execute(
-            "SELECT pdf_file_path FROM windmill.eb_statements WHERE id=%s",
-            (id,)
-        )
+        cursor.callproc("windmill.sp_get_eb_statement_file_path_for_delete", (id,))
 
         row = cursor.fetchone()
         if not row:
@@ -548,10 +507,7 @@ async def get_eb_statement(id: int, user: dict = Depends(get_current_user)):
     conn = get_connection(db_name=DB_NAME_WINDMILL)
     cursor = conn.cursor()
     try:
-        cursor.execute(
-            "SELECT id, month, windmill_id, pdf_file_path, is_submitted FROM windmill.eb_statements WHERE id=%s",
-            (id,)
-        )
+        cursor.callproc("windmill.sp_get_eb_statement_by_id", (id,))
         row = cursor.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="EB Statement not found")
@@ -581,7 +537,7 @@ async def update_eb_statement(
     cursor = conn.cursor()
     try:
         # Get existing file path
-        cursor.execute("SELECT pdf_file_path FROM windmill.eb_statements WHERE id=%s", (id,))
+        cursor.callproc("windmill.sp_get_eb_statement_by_id", (id,))
         row = cursor.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="EB Statement not found")
@@ -619,10 +575,7 @@ async def update_eb_statement(
                     print(f"Warning: Could not delete old file {old_pdf_path}: {fe}")
         
         # Update Record
-        cursor.execute(
-            "UPDATE windmill.eb_statements SET windmill_id=%s, month=%s, pdf_file_path=%s, modified_at=NOW() WHERE id=%s",
-            (windmill_id, month, new_pdf_path, id)
-        )
+        cursor.callproc("windmill.sp_update_eb_statement_header", (id, windmill_id, month, new_pdf_path))
         conn.commit()
 
         return {"status": "success", "message": "EB Statement updated successfully"}
@@ -645,9 +598,7 @@ async def save_eb_statement_details(
     try:
         # 0. Delete existing records for this header to allow update/overwrite
         print(f"Cleaning existing records for eb_header_id {payload.eb_header_id}")
-        cursor.execute("DELETE FROM windmill.eb_statements_details WHERE eb_header_id=%s", (payload.eb_header_id,))
-        cursor.execute("DELETE FROM windmill.eb_statements_applicable_charges WHERE eb_header_id=%s", (payload.eb_header_id,))
-        cursor.execute("DELETE FROM windmill.eb_statements_total_banking_units WHERE eb_header_id=%s", (payload.eb_header_id,))
+        cursor.callproc("windmill.sp_clear_eb_statement_child_records", (payload.eb_header_id,))
 
         # 1. Insert into eb_statements_details for EACH slot (Net + Banking per slot)
         for slot_key, net_val_str in payload.slots.items():
@@ -660,12 +611,8 @@ async def save_eb_statement_details(
             banking_val_str = payload.banking_slots.get(slot_key, "0")
             banking_val = float(banking_val_str) if banking_val_str else 0
 
-            cursor.execute(
-                """
-                INSERT INTO windmill.eb_statements_details 
-                (eb_header_id, company_name, windmill_id, slots, net_unit, banking_units, created_by)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                """,
+            cursor.callproc(
+                "windmill.sp_insert_eb_statement_detail",
                 (
                     payload.eb_header_id,
                     payload.company_name,
@@ -678,12 +625,8 @@ async def save_eb_statement_details(
             )
 
         # 2. Insert into eb_statements_total_banking_units
-        cursor.execute(
-            """
-            INSERT INTO windmill.eb_statements_total_banking_units
-            (eb_header_id, total_banking_units, created_by)
-            VALUES (%s, %s, %s)
-            """,
+        cursor.callproc(
+            "windmill.sp_insert_eb_statement_total_banking",
             (payload.eb_header_id, payload.banking_units, user_id)
         )
 
@@ -707,12 +650,7 @@ async def save_eb_statement_details(
             # 1) Preferred: Match using the charge description (charge_description column)
             if charge_name_norm:
                 try:
-                    cursor.execute(
-                        "SELECT id FROM masters.master_consumption_chargers "
-                        "WHERE TRIM(LOWER(charge_description)) LIKE %s "
-                        "LIMIT 1",
-                        (f"%{charge_name_norm}%",)
-                    )
+                    cursor.callproc("masters.sp_mapping_charge_id", (charge_name_norm, ""))
                     res = cursor.fetchone()
                     if res:
                         charge_id = res[0]
@@ -722,12 +660,7 @@ async def save_eb_statement_details(
             # 2) Secondary: use code lookup if provided
             if not charge_id and charge_code_norm:
                 try:
-                    cursor.execute(
-                        "SELECT id FROM masters.master_consumption_chargers "
-                        "WHERE TRIM(LOWER(charge_code)) = %s "
-                        "LIMIT 1",
-                        (charge_code_norm,)
-                    )
+                    cursor.callproc("masters.sp_mapping_charge_id_by_code", (charge_code_norm,))
                     res = cursor.fetchone()
                     if res:
                         charge_id = res[0]
@@ -737,15 +670,7 @@ async def save_eb_statement_details(
             # 3) Fallback: match on charge name if still missing
             if not charge_id:
                 try:
-                    cursor.execute(
-                        "SELECT id FROM masters.master_consumption_chargers "
-                        "WHERE (TRIM(LOWER(charge_name)) LIKE %s OR TRIM(LOWER(charge_code)) LIKE %s) "
-                        "LIMIT 1",
-                        (
-                            f"%{charge_name_norm}%",
-                            f"%{charge_name_norm}%",
-                        )
-                    )
+                    cursor.callproc("masters.sp_mapping_charge_id_fallback", (charge_name_norm,))
                     res = cursor.fetchone()
                     if res:
                         charge_id = res[0]
@@ -755,20 +680,13 @@ async def save_eb_statement_details(
             if charge_id is None:
                 print(f"Warning: charge_id not mapped for '{charge.name}' (code={getattr(charge, 'code', None)})")
 
-            cursor.execute(
-                """
-                INSERT INTO windmill.eb_statements_applicable_charges 
-                (eb_header_id, charge_id, total_charge, created_by)
-                VALUES (%s, %s, %s, %s)
-                """,
+            cursor.callproc(
+                "windmill.sp_insert_eb_statement_charge",
                 (payload.eb_header_id, charge_id, charge.amount, user_id)
             )
 
         # 4. Mark as submitted and update modified time
-        cursor.execute(
-            "UPDATE windmill.eb_statements SET is_submitted=1, modified_at=NOW() WHERE id=%s",
-            (payload.eb_header_id,)
-        )
+        cursor.callproc("windmill.sp_mark_eb_statement_submitted", (payload.eb_header_id,))
         
         conn.commit()
         print(f"Successfully saved EB statement details for header {payload.eb_header_id}")

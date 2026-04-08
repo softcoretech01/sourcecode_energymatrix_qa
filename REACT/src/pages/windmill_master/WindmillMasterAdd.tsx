@@ -214,16 +214,6 @@ export default function WindmillMasterAdd() {
             return;
         }
 
-        // Quick client-side validation for required fields (prevents 422 from FastAPI)
-        if (!windmillNumber?.trim()) {
-            alert("Windmill Number is required");
-            return;
-        }
-        if (!kvaId) {
-            alert("Please select a KVA");
-            return;
-        }
-
         if (isSubmitted) {
             setIsPosting(true);
         } else {

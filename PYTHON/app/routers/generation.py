@@ -108,11 +108,7 @@ def save_daily_generation(
     if row:
         # Ensure status matches running/not running toggle (stored procedure may set Saved/Posted)
         db.execute(
-            text("CALL sp_update_windmill_daily_transaction_status(:id, :status)"),
-            {"id": row["id"], "status": payload.status}
-        )
-        db.execute(
-            text("UPDATE windmill_daily_transaction SET is_submitted = :is_submitted WHERE id = :id"),
+            text("CALL windmill.sp_update_windmill_daily_transaction_submitted(:id, :is_submitted)"),
             {"id": row["id"], "is_submitted": payload.is_submitted}
         )
         db.commit()
@@ -148,11 +144,7 @@ def post_daily_generation(
     if row:
         # Ensure status matches running/not running toggle (stored procedure may set Saved/Posted)
         db.execute(
-            text("CALL sp_update_windmill_daily_transaction_status(:id, :status)"),
-            {"id": row["id"], "status": payload.status}
-        )
-        db.execute(
-            text("UPDATE windmill_daily_transaction SET is_submitted = :is_submitted WHERE id = :id"),
+            text("CALL windmill.sp_update_windmill_daily_transaction_submitted(:id, :is_submitted)"),
             {"id": row["id"], "is_submitted": payload.is_submitted}
         )
         db.commit()
@@ -195,11 +187,7 @@ def update_daily_generation(
     
     # For UPDATE, we always have the 'id' from the path
     db.execute(
-        text("CALL sp_update_windmill_daily_transaction_status(:id, :status)"),
-        {"id": id, "status": payload.status}
-    )
-    db.execute(
-        text("UPDATE windmill_daily_transaction SET is_submitted = :is_submitted WHERE id = :id"),
+        text("CALL windmill.sp_update_windmill_daily_transaction_submitted(:id, :is_submitted)"),
         {"id": id, "is_submitted": payload.is_submitted}
     )
     db.commit()
@@ -231,17 +219,13 @@ def get_windmill_list(user: dict = Depends(get_current_user)):
     try:
         windmills = []
         try:
-            cursor.callproc("sp_get_windmill_list_dropdown")
+            cursor.callproc("masters.sp_get_windmill_list_dropdown_for_gen")
             rows = cursor.fetchall()
         except Exception as e:
             # Stored proc may not exist (1305) or has another issue.
             # Fall back to a direct query against master_windmill.
             if getattr(e, "args", None) and len(e.args) > 0 and e.args[0] == 1305:
-                cursor.execute("""
-                    SELECT id, windmill_number
-                    FROM master_windmill
-                    WHERE status = 'Active' and is_submitted = 1;
-                """)
+                cursor.callproc("masters.sp_get_windmill_list_dropdown_for_gen")
                 rows = cursor.fetchall()
             else:
                 raise

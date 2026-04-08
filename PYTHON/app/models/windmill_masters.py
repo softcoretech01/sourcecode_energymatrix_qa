@@ -8,7 +8,7 @@ from app.database import BaseMasters as Base
 class Windmill(Base):
     __tablename__ = "master_windmill"
 
-    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    id = Column(BigInteger, primary_key=True, index=True, autoincrement=True)
     type = Column(String(50)) # enum('Windmill', 'Solar', ...)
     windmill_number = Column(String(50))
     windmill_name = Column(String(100))
@@ -62,7 +62,7 @@ class WindmillUploadDocs(Base):
     __tablename__ = "master_windmill_upload_docs"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    windmill_id = Column(Integer)
+    windmill_id = Column(BigInteger)
     document_type = Column(String(100)) # enum
     file_path = Column(String(255))
     

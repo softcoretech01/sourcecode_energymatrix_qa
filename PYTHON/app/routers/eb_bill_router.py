@@ -11,12 +11,39 @@ import tempfile
 from app.schemas.eb_bill_schema import EBBillResponse, BulkSaveRequest
 from app.utils.validation import validate_customer, validate_service_number
 
-router = APIRouter(
-    prefix="/eb-bill",
-    tags=["EB Bill"]
-)
+router = APIRouter(prefix="/eb-bill", tags=["EB Bill"])
+
+def get_charge_labels():
+    """Fetch charge code -> label mapping from masters database."""
+    labels = {}
+    conn = None
+    try:
+        conn = get_connection("masters")
+        with conn.cursor() as cursor:
+            cursor.callproc("sp_get_consumption_charges")
+            rows = cursor.fetchall()
+            for code, name in rows:
+                if code and name:
+                    c_db = code.upper()
+                    # Use EXACT code from DB as requested
+                    labels[c_db] = f"{c_db}- {name}"
+        print(f"DEBUG: Fetched {len(labels)} charge labels: {labels}")
+    except Exception as e:
+        print(f"DEBUG Error fetching charge labels: {e}")
+        labels = {"C001": "C001- Meter Reading Charges", "C002": "C002- O&M Charges", "C010": "C010- DSM Charges", "WHLC": "Wheeling Charges"}
+    finally:
+        if conn:
+            conn.close()
+    return labels
+
+@router.get("/charge-labels")
+async def fetch_charge_labels(user: dict = Depends(get_current_user)):
+    """API endpoint to get charge labels for UI use."""
+    return get_charge_labels()
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+UPLOAD_DIR = os.path.join(BASE_DIR, "uploads", "eb_bill")
+os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 def normalize_month(month_val):
     month_names = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
@@ -28,18 +55,21 @@ def normalize_month(month_val):
 
 # ✅ UNIVERSAL OA extractor (table + fallback text parsing)
 def extract_abstract_rows(pdf):
-
-    windmill_map: dict[str, list[str]] = {}
-    columns: list[str] = []
+    lines = []
+    windmill_map = {} # {windmill: {global_col_idx: value}}
+    columns = ["CHARGES"]
     inside_abstract = False
 
+    # Get standard labels once at start of extraction
+    standard_labels = get_charge_labels()
+    # Codes used for identification (e.g. ['C001', 'C002', ...])
+    known_codes = list(standard_labels.keys()) + ["WHEEL", "DSM"]
+
     for page in pdf.pages:
-
         text = page.extract_text() or ""
-        lines = text.split("\n")
+        lines.extend(text.split("\n"))
 
-        # Start Abstract section
-        if "Abstract for OA Adjustment Charges" in text:
+        if "ABSTRACT FOR OA ADJUSTMENT CHARGES" in text.upper():
             inside_abstract = True
 
         # Stop at LT section
@@ -55,177 +85,168 @@ def extract_abstract_rows(pdf):
         tables = page.extract_tables() or []
 
         for table in tables:
-
             if not table:
                 continue
 
-            # 🔵 MERGE STACKED HEADER ROWS (first 3 rows)
-            merged = []
-            for col_idx in range(len(table[0])):
-                parts = []
-                for r in table[:3]:
-                    if col_idx < len(r) and r[col_idx]:
-                        parts.append(str(r[col_idx]).strip())
-                merged.append(" ".join(parts))
+            # ------------------------------------------------------------
+            # DYNAMIC COLUMN MAPPING FOR EACH TABLE
+            # ------------------------------------------------------------
+            table_header_rows = 0
+            curr_table_col_map = {} # Maps table_col_idx -> global_col_idx
+            
+            # Search first 3 rows for headers
+            found_headers = False
+            for r_idx, r in enumerate(table[:3]):
+                row_text_r = " ".join([str(c) for c in r if c]).upper()
+                if any(x in row_text_r for x in ["C00", "C010", "WHEEL", "WHLC", "DSM", "PENAL"]):
+                    table_header_rows = r_idx + 1
+                    found_headers = True
+                    # Map columns
+                    for c_idx, cell in enumerate(r):
+                        if not cell: continue
+                        cell_clean = re.sub(r"\s+", " ", str(cell)).strip().upper()
+                        # Search for recognized codes in the cell
+                        matched_label = None
+                        for code in known_codes:
+                            if code in cell_clean:
+                                matched_label = code
+                                break
+                        
+                        if matched_label:
+                            # Standardize label
+                            full_label = matched_label
+                            if full_label == "WHEEL": full_label = "WHLC"
+                            
+                            # Ensure it's in global columns
+                            if full_label not in columns:
+                                columns.append(full_label)
+                            
+                            curr_table_col_map[c_idx] = columns.index(full_label)
 
-            first_row = [re.sub(r"\s+", " ", c) for c in merged]
-            row_text = " ".join(first_row).upper()
+            if not found_headers and len(columns) <= 1:
+                continue # Skip tables that don't look like OA charges until we find the first one
 
-            # Track whether this table is a continqaion block
-            is_continqaion = False
-            continqaion_offset = 0   # index into existing[] where new cols start
-            n_new_cols = 0
-
-            # Detect main OA header
-            if not columns and ("C001" in row_text or "C002" in row_text):
-
-                new_cols = []
-                for cell in first_row[1:]:
-                    if "C00" in cell:
-                        cleaned = re.sub(r"\s*\d[\d,\.]*$", "", cell).strip()
-                        new_cols.append(cleaned)
-
-                if not columns:
-                    columns.append("CHARGES")
-
-                columns.extend(new_cols)
-                data_rows = table[3:]  # skip stacked header rows
-
-            # Detect DSM/WHLC continqaion table
-            elif columns and ("DSM" in row_text or "WHLC" in row_text):
-
-                new_cols = []
-                for cell in first_row[1:]:
-                    cell = re.sub(r"\s+", " ", cell)
-                    cell = re.sub(r"\s*\d[\d,\.]*$", "", cell).strip()
-                    if cell and cell not in columns:
-                        new_cols.append(cell)
-
-                if new_cols:
-                    # First time: brand-new continqaion columns
-                    orig_len = len(columns)
-                    columns.extend(new_cols)
-                    for k in windmill_map:
-                        windmill_map[k].extend(["0.00"] * len(new_cols))
-                    is_continqaion = True
-                    continqaion_offset = orig_len - 1
-                    n_new_cols = len(new_cols)
-                else:
-                    # Repeated continqaion table (same header, different batch of windmills)
-                    # Identify which known columns appear in this table's header
-                    cont_col_names = []
-                    for cell in first_row[1:]:
-                        cell = re.sub(r"\s+", " ", cell)
-                        cell = re.sub(r"\s*\d[\d,\.]*$", "", cell).strip()
-                        if cell and cell in columns:
-                            cont_col_names.append(cell)
-                    if cont_col_names:
-                        # existing[i] == columns[i+1], so offset = col_index - 1
-                        first_col_pos = columns.index(cont_col_names[0])
-                        is_continqaion = True
-                        continqaion_offset = first_col_pos - 1
-                        n_new_cols = len(cont_col_names)
-
-                data_rows = table[1:]
-
-            else:
-                data_rows = table
-
-            # Extract rows from table
+            # Process data rows
+            data_rows = table[table_header_rows:]
             for row in data_rows:
-
-                if not row or not row[0]:
-                    continue
-
-                # Extract numeric part from windmill cell
+                if not row or not row[0]: continue
+                
+                # Extract windmill number
                 windmill_raw = str(row[0]).strip()
                 windmill = re.sub(r"\D", "", windmill_raw)
-                if not windmill or not windmill.isdigit():
+                if not windmill or not windmill.isdigit() or len(windmill) < 10:
                     continue
 
-                if is_continqaion:
-                    # ✅ FIXED: map continqaion row values to the correct tail positions
-                    # row[j+1] → existing[continqaion_offset + j]
-                    if windmill in windmill_map:
-                        existing = windmill_map[windmill]
-                        for j in range(n_new_cols):
-                            row_idx = j + 1
-                            target_idx = continqaion_offset + j
-                            val = "0.00"
-                            if row_idx < len(row) and row[row_idx] is not None:
-                                v = str(row[row_idx]).replace(",", "").strip()
-                                if re.match(r"^-?\d+(\.\d+)?$", v):
-                                    val = v
-                            if target_idx < len(existing) and existing[target_idx] == "0.00":
-                                existing[target_idx] = val
-                    else:
-                        # Windmill appears only in continqaion table — initialise full row
-                        full_vals = ["0.00"] * (len(columns) - 1)
-                        for j in range(n_new_cols):
-                            row_idx = j + 1
-                            target_idx = continqaion_offset + j
-                            if row_idx < len(row) and row[row_idx] is not None:
-                                v = str(row[row_idx]).replace(",", "").strip()
-                                if re.match(r"^-?\d+(\.\d+)?$", v):
-                                    if target_idx < len(full_vals):
-                                        full_vals[target_idx] = v
-                        windmill_map[windmill] = full_vals
-                else:
-                    # Normal main-table row: values map 1-to-1 with columns[1:]
-                    values = []
-                    for i in range(1, len(columns)):
-                        if i < len(row) and row[i] is not None:
-                            val = str(row[i]).replace(",", "").strip()
-                            if re.match(r"^-?\d+(\.\d+)?$", val):
-                                values.append(val)
-                            else:
-                                values.append("0.00")
-                        else:
-                            values.append("0.00")
+                if windmill not in windmill_map:
+                    windmill_map[windmill] = {}
 
-                    if windmill in windmill_map:
-                        existing = windmill_map[windmill]
-                        for idx, v in enumerate(values):
-                            if idx < len(existing):
-                                if existing[idx] == "0.00":
-                                    existing[idx] = v
-                            else:
-                                existing.append(v)
-                    else:
-                        windmill_map[windmill] = values
+                # Map values based on identified columns
+                for t_idx, g_idx in curr_table_col_map.items():
+                    if t_idx < len(row) and row[t_idx]:
+                        val_str = str(row[t_idx]).replace(",", "").strip()
+                        # Extract first numeric value found in case of merged text
+                        match = re.search(r"^-?\d+(\.\d+)?", val_str)
+                        if match:
+                            val = match.group(0)
+                        else:
+                            val = "0.00"
+                        
+                        # Store/Update (prefer non-zero if multiple tables provide value)
+                        if g_idx not in windmill_map[windmill] or windmill_map[windmill][g_idx] == "0.00":
+                            windmill_map[windmill][g_idx] = val
 
         # -----------------------
         # 2️⃣ FALLBACK: text parsing
         # -----------------------
-        if inside_abstract and not columns:
-
+        if inside_abstract and not windmill_map:
             for idx, line in enumerate(lines):
-
                 parts = line.strip().split()
                 if not parts:
                     continue
 
+                # Look for 10-12 digit service number
                 if re.fullmatch(r"\d{10,12}", parts[0]):
-
                     windmill = parts[0]
-
-                    nums = []
-                    nums.extend(re.findall(r"\d+\.\d+", line))
-
-                    if not nums and idx + 1 < len(lines):
-                        nums.extend(re.findall(r"\d+\.\d+", lines[idx+1]))
+                    nums = re.findall(r"\d+\.\d+", line)
+                    
+                    # Also look in the immediate next line for more numbers (common in some PDF layouts)
+                    if idx + 1 < len(lines):
+                        next_line = lines[idx+1]
+                        if not re.search(r"\d{10,12}", next_line): # Don't bleed into next windmill
+                            nums.extend(re.findall(r"\d+\.\d+", next_line))
 
                     if nums:
-                        windmill_map[windmill] = nums
+                        windmill_map[windmill] = {i+1: val for i, val in enumerate(nums)}
+                        if len(columns) == 1:
+                            columns.extend([f"Charge_{i+1}" for i in range(len(nums))])
 
-                        if not columns:
-                            columns = ["CHARGES"] + [f"Charge_{i+1}" for i in range(len(nums))]
+    # Get standard labels from DB
+    standard_labels = get_charge_labels()
 
-    # final cleanup: ensure no column header retains stray numeric values
-    columns = [re.sub(r"\s*\d[\d,\.]*$", "", c).strip() for c in columns]
+    # Final cleanup: ensure unique columns while preserving order
+    seen_cols = set()
+    unique_columns = []
+    global_to_final_idx = {} # map global index in 'columns' list to index in 'unique_columns'
+    
+    # Always put 'CHARGES' first
+    unique_columns.append("CHARGES")
+    seen_cols.add("CHARGES")
+    
+    for idx, col in enumerate(columns):
+        col_str = str(col).strip()
+        if not col_str or col_str == "CHARGES": continue
+        
+        # Aggressively remove any trailing numbers (e.g. "C001 0.00" -> "C001")
+        col_name = re.sub(r"\s+[\d,\.]+$", "", col_str).strip()
+        
+        # Standardize if a known code is found in standard_labels
+        col_upper = col_name.upper()
+        
+        # Check for specific codes (C001, C002, etc.) inside the column header
+        matched = False
+        for code, label in standard_labels.items():
+            # Flexible matching: handle zero-padding diffs (C005 vs C0005)
+            # Normalize e.g. C0005 -> C05 and C005 -> C05
+            code_min = re.sub(r'0+', '0', code)
+            col_min = re.sub(r'0+', '0', col_upper)
+            
+            if code in col_upper or code_min in col_min:
+                col_name = label
+                matched = True
+                break
+        
+        # Fallback for common patterns if not in standard_labels
+        if not matched:
+            if "WHEEL" in col_upper:
+                col_name = standard_labels.get("WHLC", "Wheeling Charges")
+            elif "AMR" in col_upper:
+                 col_name = standard_labels.get("C001", "C001- Meter Reading Charges")
+            elif "DSM" in col_upper:
+                 col_name = standard_labels.get("C010", "C010- DSM Charges")
+        
+        if col_name.upper() not in seen_cols:
+            unique_columns.append(col_name)
+            seen_cols.add(col_name.upper())
+        
+        # Map original 'columns' index to the current 'unique_columns' index (minus 1 for CHARGES)
+        final_idx = unique_columns.index(col_name) - 1
+        global_to_final_idx[idx] = final_idx
+    
+    # Assemble final rows: map dict values to the correct list index
+    target_count = len(unique_columns) - 1
+    final_rows = []
+    for k, v_dict in windmill_map.items():
+        # v_dict is { global_col_idx: value }
+        charges = ["0.00"] * target_count
+        for g_idx, val in v_dict.items():
+            if g_idx in global_to_final_idx:
+                f_idx = global_to_final_idx[g_idx]
+                if f_idx < target_count:
+                    charges[f_idx] = val
+        
+        final_rows.append({"windmill": k, "charges": charges})
 
-    rows = [{"windmill": k, "charges": v} for k, v in windmill_map.items()]
-    return rows, columns
+    return final_rows, unique_columns
 
 
 @router.get("/check-duplicate")
@@ -240,8 +261,7 @@ async def check_eb_bill_duplicate(
     cursor = conn.cursor()
     try:
         # Check if a record exists for this specific combination
-        query = "SELECT id FROM windmill.eb_bill WHERE customer_id=%s AND sc_id=%s AND bill_year=%s AND bill_month=%s LIMIT 1"
-        cursor.execute(query, [customer_id, service_number_id, year, month])
+        cursor.callproc("sp_check_eb_bill_duplicate", [customer_id, service_number_id, year, month])
         row = cursor.fetchone()
         
         if row:
@@ -272,10 +292,11 @@ async def get_eb_bill_list(
                 "bill_month": row[1],
                 "bill_year": row[2],
                 "customer_name": row[3],
-                "pdf_file_path": row[4],
-                "is_submitted": row[5],
-                "created_at": row[6],
-                "created_by": row[7]
+                "service_number": row[4],
+                "pdf_file_path": row[5],
+                "is_submitted": row[6],
+                "created_at": row[7],
+                "created_by": row[8]
             })
         return {"status": "success", "data": data}
     finally:
@@ -313,14 +334,15 @@ async def view_eb_bill(id: int, user: dict = Depends(get_current_user)):
             cursor.callproc("get_eb_bill_adjustment_charges", [id])
             charge_rows = cursor.fetchall()
 
-            # Build matched_rows
-            columns = ["CHARGES", "C001- AMR Meter Reading Charges", "C002- O&M Charges", "C003- Transmission Charges", 
-                    "C004- System Operation Charges", "C005- RKvah Penalty", "C006", "C007", "C008", "C010", "Wheeling Charges"]
+            # Build dynamic columns
+            labels = get_charge_labels()
+            codes = ["C001", "C002", "C003", "C004", "C005", "C006", "C007", "C008", "C010", "WHLC"]
+            columns = ["CHARGES"] + [labels.get(c, c) for c in codes]
             
             matched_rows = []
             for row in charge_rows:
+                # Map columns 3 to 12 directly to match charges starting from C001
                 charges = [
-                    "0.00", 
                     str(row[3]), str(row[4]), str(row[5]), str(row[6]), str(row[7]),
                     str(row[8]), str(row[9]), str(row[10]), str(row[11]), str(row[12])
                 ]
@@ -423,42 +445,33 @@ async def seed_eb_bill_master_data(user: dict = Depends(get_current_user)):
     cursor = conn.cursor()
 
     try:
-        # ensure customer exists in masters.master_customers
         customer_name = "Texmo"
-        cursor.execute(
-            "SELECT id FROM masters.master_customers WHERE customer_name=%s AND status='1' LIMIT 1",
-            (customer_name,)
-        )
+        cursor.callproc("sp_seed_get_customer", (customer_name,))
         existing = cursor.fetchone()
 
         if existing:
             customer_id = existing[0]
             print(f"Found existing customer: {customer_name} (ID: {customer_id})")
         else:
-            cursor.execute(
-                "INSERT INTO masters.master_customers (customer_name, status, created_at, created_by, modified_at, modified_by) VALUES (%s, '1', NOW(), %s, NOW(), %s)",
-                (customer_name, user.get("id", 0), user.get("id", 0))
-            )
-            customer_id = cursor.lastrowid
+            cursor.callproc("sp_seed_insert_customer", (customer_name, user.get("id", 0)))
+            res = cursor.fetchone()
+            customer_id = res[0] if res else None
             print(f"Created new customer: {customer_name} (ID: {customer_id})")
+
+        while cursor.nextset(): pass
 
         # ensure service entry exists in masters.customer_service
         service_number = "SE1001"
-        cursor.execute(
-            "SELECT id FROM masters.customer_service WHERE customer_id=%s AND service_number=%s AND status='1' LIMIT 1",
-            (customer_id, service_number)
-        )
+        cursor.callproc("sp_seed_get_service", (customer_id, service_number))
         existing_service = cursor.fetchone()
 
         if existing_service:
             service_id = existing_service[0]
             print(f"Found existing service number: {service_number} (ID: {service_id})")
         else:
-            cursor.execute(
-                "INSERT INTO masters.customer_service (customer_id, service_number, status, created_at, created_by, modified_at, modified_by) VALUES (%s, %s, '1', NOW(), %s, NOW(), %s)",
-                (customer_id, service_number, user.get("id", 0), user.get("id", 0))
-            )
-            service_id = cursor.lastrowid
+            cursor.callproc("sp_seed_insert_service", (customer_id, service_number, user.get("id", 0)))
+            res = cursor.fetchone()
+            service_id = res[0] if res else None
             print(f"Created new service number: {service_number} (ID: {service_id})")
 
         conn.commit()
@@ -596,15 +609,10 @@ async def save_all_eb_bill_details(
         print(f"DEBUG: header={header_id}, customer={cust_id}, sc={sc_id}, rows={len(rows)}")
 
         # ✅ 1. Mark header as submitted
-        cursor.execute(
-            "UPDATE windmill.eb_bill SET is_submitted=1 WHERE id=%s",
-            [header_id]
-        )
+        cursor.callproc("sp_submit_eb_bill", [header_id])
 
         # ✅ 2. Clean old data (IMPORTANT)
-        cursor.execute("DELETE FROM windmill.eb_bill_details WHERE eb_bill_header_id=%s", [header_id])
-        cursor.execute("DELETE FROM windmill.eb_bill_adjustment_charges WHERE eb_bill_header_id=%s", [header_id])
-        cursor.execute("DELETE FROM windmill.actual WHERE client_eb_id=%s", [header_id])
+        cursor.callproc("sp_clear_eb_bill_data", [header_id])
 
         # ✅ 3. Call SP → insert_eb_bill_detail
         cursor.callproc(
@@ -632,7 +640,8 @@ async def save_all_eb_bill_details(
             elif "C007" in col_upper: col_to_param[i] = "c007"
             elif "C008" in col_upper: col_to_param[i] = "c008"
             elif "C010" in col_upper: col_to_param[i] = "c010"
-            elif "WHEELING" in col_upper: col_to_param[i] = "wheeling_charges"
+            elif "WHEEL" in col_upper or "WHLC" in col_upper: col_to_param[i] = "wheeling_charges"
+            elif "DSM" in col_upper: col_to_param[i] = "c008" # Map DSM to C008 if applicable, or add extra column if needed
 
         # ✅ 5. Loop rows → call adjustment SP
         for idx, row in enumerate(rows):
@@ -727,13 +736,17 @@ async def read_pdf(
             exp_se = next((s[1] for s in all_services if s[0] == service_number_id), "")
 
             # Fetch customer and sc_number for naming
-            cursor.execute("SELECT customer_name FROM masters.master_customers WHERE id=%s", (customer_id,))
+            cursor.callproc("sp_get_customer_name_by_id", (customer_id,))
             cust_res = cursor.fetchone()
             customer_name_db = cust_res[0] if cust_res else "unknown_customer"
             
-            cursor.execute("SELECT service_number FROM masters.customer_service WHERE id=%s", (service_number_id,))
+            while cursor.nextset(): pass
+            
+            cursor.callproc("sp_get_service_number_by_id", (service_number_id,))
             sc_res = cursor.fetchone()
             sc_number_db = sc_res[0] if sc_res else "unknown_sc"
+            
+            while cursor.nextset(): pass
             
             # Normalize month for folder and filename
             month_name = normalize_month(month)
@@ -885,7 +898,7 @@ async def delete_eb_bill(id: int, user: dict = Depends(get_current_user)):
         print(f"DEBUG: Deleting EB Bill ID: {id}")
         
         # Verify the bill exists before attempting delete
-        cursor.execute("SELECT id FROM windmill.eb_bill WHERE id=%s", [id])
+        cursor.callproc("sp_check_eb_bill_exists", [id])
         existing = cursor.fetchone()
         if not existing:
             print(f"DEBUG: EB Bill ID {id} not found")

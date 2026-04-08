@@ -1,17 +1,23 @@
 import React, { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, FileDiff, Save } from "lucide-react";
+import { ArrowLeft, Building2, Calendar, Hash, Info, Save } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import api from "@/services/api";
 
 export default function EBBillPdf() {
     const navigate = useNavigate();
     const [ebData, setEbData] = useState<any>(null);
+    const [chargeLabels, setChargeLabels] = useState<Record<string, string>>({});
 
     const oaRows = ebData?.matched_rows || [];
     const columns = ebData?.columns || [];
 
     useEffect(() => {
+        // Fetch official charge labels for display
+        api.get("/eb-bill/charge-labels")
+            .then(res => setChargeLabels(res.data))
+            .catch(err => console.error("Failed to fetch charge labels:", err));
+
         const stored = sessionStorage.getItem("ebData");
         if (!stored) {
             console.warn("No ebData in sessionStorage, redirecting...");
@@ -89,61 +95,73 @@ export default function EBBillPdf() {
     }
 
     return (
-        <div className="min-h-screen bg-gray-100 p-8">
+        <div className="min-h-screen bg-gray-100 p-8 text-slate-800">
 
             {/* Header buttons */}
             <div className="flex items-center justify-between mb-4">
-                <Button variant="outline" onClick={() => navigate(-1)} className="bg-white">
+                <Button variant="outline" onClick={() => navigate(-1)} className="bg-white border-slate-300 hover:bg-slate-50 transition-all font-medium">
                     <ArrowLeft className="h-4 w-4 mr-2" /> Back
                 </Button>
 
                 <div className="flex gap-2">
                     {!ebData.isViewMode && (
-                        <>
-                            <Button onClick={handleSave} className="bg-emerald-600 hover:bg-emerald-700">
-                                <Save className="h-4 w-4 mr-2" /> Save
-                            </Button>
-
-                            <Button>
-                                <FileDiff className="h-4 w-4 mr-2" /> Comparison
-                            </Button>
-                        </>
+                        <Button onClick={handleSave} className="bg-emerald-600 hover:bg-emerald-700 shadow-md transition-all px-6">
+                            <Save className="h-4 w-4 mr-2" /> Save
+                        </Button>
                     )}
                 </div>
             </div>
 
             {/* Main Card */}
-            <div className="bg-white mx-auto p-10 shadow-xl border border-gray-200 rounded-sm w-full max-w-7xl min-h-[297mm]">
+            <div className="bg-white mx-auto p-12 shadow-2xl border border-slate-200 rounded-sm w-full max-w-7xl min-h-[297mm]">
 
-                <div className="border-b-2 border-gray-100 pb-6 mb-8">
-                    <h1 className="text-center font-bold text-3xl text-gray-900 tracking-tight">
-                        ENERGY ALLOTMENT ORDER CHARGES
+                <div className="border-b-2 border-slate-100 pb-8 mb-10">
+                    <h1 className="text-center font-extrabold text-4xl text-slate-900 tracking-tight uppercase">
+                        Energy Allotment Order Charges
                     </h1>
                 </div>
 
-                {/* Customer Details Box */}
-                {ebData && (
-                    <div className="mb-10 text-base grid grid-cols-2 gap-y-4 gap-x-12 border border-gray-200 p-6 rounded-lg bg-gray-50/30">
-                        <div className="flex items-center gap-3">
-                            <span className="font-bold text-gray-500 uppercase text-[12px] tracking-wider w-32">Customer:</span>
-                            <span className="font-semibold text-gray-900">{ebData.customer_name || "-"}</span>
+                {/* Header Information Section */}
+                <div className="mb-12 border border-slate-200 rounded-lg overflow-hidden bg-white shadow-sm transition-all hover:shadow-md">
+                    <div className="bg-slate-50/80 px-4 py-3 border-b border-slate-200 flex items-center gap-2">
+                        <Info className="h-4 w-4 text-blue-600" />
+                        <span className="text-sm font-bold text-slate-700 tracking-wide">Header Information</span>
+                    </div>
+                    <div className="p-8 grid grid-cols-3 divide-x divide-slate-100">
+                        {/* Company Name */}
+                        <div className="px-4 first:pl-2">
+                            <div className="flex items-center gap-2 text-slate-400 mb-1.5">
+                                <Building2 className="h-3.5 w-3.5" />
+                                <span className="text-[10px] font-bold uppercase tracking-widest">Company Name</span>
+                            </div>
+                            <div className="text-[13px] font-extrabold text-slate-900 uppercase leading-relaxed">
+                                {ebData.customer_name || "-"}
+                            </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                            <span className="font-bold text-gray-500 uppercase text-[12px] tracking-wider w-32">Service No:</span>
-                            <span className="font-mono font-medium text-gray-900">{ebData.service_number || "-"}</span>
+
+                        {/* Windmill Number */}
+                        <div className="px-8">
+                            <div className="flex items-center gap-2 text-slate-400 mb-1.5">
+                                <Hash className="h-3.5 w-3.5" />
+                                <span className="text-[10px] font-bold uppercase tracking-widest">Windmill Number</span>
+                            </div>
+                            <div className="text-[13px] font-extrabold text-red-800 tracking-wider">
+                                {ebData.service_number || "-"}
+                            </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                            <span className="font-bold text-gray-500 uppercase text-[12px] tracking-wider w-32">Year / Month:</span>
-                            <span className="font-semibold text-gray-900">
-                                {ebData.bill_year || "-"} / {ebData.bill_month_name || "-"}
-                            </span>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <span className="font-bold text-gray-500 uppercase text-[12px] tracking-wider w-32">Self Gen Tax:</span>
-                            <span className="font-bold text-emerald-700">₹ {Number(ebData.self_generation_tax || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+
+                        {/* Month / Year */}
+                        <div className="px-8 last:pr-2">
+                            <div className="flex items-center gap-2 text-slate-400 mb-1.5">
+                                <Calendar className="h-3.5 w-3.5" />
+                                <span className="text-[10px] font-bold uppercase tracking-widest">Month / Year</span>
+                            </div>
+                            <div className="text-[13px] font-extrabold text-slate-900 tracking-wider">
+                                {ebData.bill_month_name || "-"} / {ebData.bill_year || "-"}
+                            </div>
                         </div>
                     </div>
-                )}
+                </div>
 
                 {/* Applicable Charges Section */}
                 <div className="mb-8">
@@ -159,11 +177,11 @@ export default function EBBillPdf() {
                         <div className="border border-gray-300 rounded-xl overflow-hidden shadow-sm">
                             <table className="w-full border-collapse text-[12px]">
                                 <thead>
-                                    <tr className="bg-slate-800">
-                                        <th className="px-3 py-4 text-left font-bold text-white uppercase tracking-wider w-[140px] border-r border-slate-700">Windmill</th>
+                                    <tr className="bg-[hsl(var(--sidebar-background))]">
+                                        <th className="px-3 py-4 text-left font-bold text-white uppercase tracking-wider w-[140px] border-r border-white/10">Windmill</th>
                                         {/* Columns header */}
                                         {columns.slice(1).map((col: string, i: number) => (
-                                            <th key={i} className={`px-2 py-4 text-center font-bold text-white uppercase tracking-tighter text-[10px] leading-tight border-r border-slate-700 last:border-r-0 ${col === 'Wheeling Charges' ? 'w-[100px]' : ''}`}>
+                                            <th key={i} className={`px-2 py-4 text-center font-bold text-white uppercase tracking-tighter text-[10px] leading-tight border-r border-white/10 last:border-r-0 ${col === 'Wheeling Charges' ? 'w-[100px]' : ''}`}>
                                                 {col}
                                             </th>
                                         ))}
@@ -181,7 +199,7 @@ export default function EBBillPdf() {
                                         </tr>
                                     ))}
                                     {/* Total row */}
-                                    <tr className="bg-slate-100 font-bold border-t-2 border-slate-800">
+                                    <tr className="bg-slate-100 font-bold border-t-2 border-[hsl(var(--sidebar-background))]">
                                         <td className="px-3 py-4 text-slate-900 uppercase text-[11px] tracking-widest border-r border-slate-300">Total</td>
                                         {columns.slice(1).map((_: string, colIdx: number) => (
                                             <td key={colIdx} className="px-2 py-4 text-right text-slate-900 border-r border-slate-300 last:border-r-0">

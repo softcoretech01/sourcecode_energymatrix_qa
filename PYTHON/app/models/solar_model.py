@@ -12,7 +12,7 @@ class EBStatementSolarDetails(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     eb_header_id = Column(Integer, ForeignKey("eb_statement_solar.id"), nullable=False)
     company_name = Column(String(255))
-    solar_id = Column(Integer)
+    solar_id = Column(BigInteger)
     slots = Column(Integer)
     net_unit = Column(DECIMAL(12, 2))
     created_by = Column(Integer)

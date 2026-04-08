@@ -166,7 +166,7 @@ export function AppSidebar() {
                 //    icon: CreditCard,
                 //},
                 //{
-                //   title: "Actual Allotment",
+                //    title: "Actual Allotment",
                 //    url: "/windmill/actuals",
                 //    icon: CreditCard,
                 //},

@@ -343,16 +343,6 @@ export default function WindmillMasterEdit() {
     };
 
     const updateWindmill = async (isSubmitted: boolean) => {
-        if (isPosted) {
-            alert("This windmill has been posted and cannot be edited.");
-            return;
-        }
-
-        if (!id) {
-            alert("Invalid windmill id");
-            return;
-        }
-
         const token = localStorage.getItem("access_token");
         if (!token) {
             alert("Not authenticated – please log in first.");
@@ -360,34 +350,9 @@ export default function WindmillMasterEdit() {
             return;
         }
 
-        // Basic required field validation (prevents 422)
-        if (!windmillNumber?.trim()) {
-            alert("Windmill Number is required");
+        if (!id) {
+            alert("Invalid windmill id");
             return;
-        }
-        if (!kvaId) {
-            alert("Please select a KVA");
-            return;
-        }
-
-        // Ensure all tabs are filled before posting
-        if (isSubmitted) {
-            const missingDocs = documents.filter((d) => !d.fileName).map((d) => d.name);
-            const missingDates: string[] = [];
-
-            if (!fromDate || !toDate) missingDates.push("AMC dates");
-            if (!insuranceFromDate || !insuranceToDate) missingDates.push("Insurance dates");
-
-            if (missingDocs.length > 0 || missingDates.length > 0) {
-                const parts: string[] = [];
-                if (missingDocs.length > 0) parts.push(`documents (${missingDocs.join(", ")})`);
-                if (missingDates.length > 0) parts.push(missingDates.join(", "));
-
-                alert(
-                    `Please complete all required fields before posting. Missing: ${parts.join("; ")}`
-                );
-                return;
-            }
         }
 
         if (isSubmitted) {

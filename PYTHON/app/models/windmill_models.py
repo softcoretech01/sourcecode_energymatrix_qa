@@ -100,7 +100,7 @@ class EnergyAllotmentHeader(Base):
 
     allocation_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     customer_id = Column(Integer, nullable=False, index=True)
-    windmill_id = Column(Integer, nullable=False, index=True)
+    windmill_id = Column(BigInteger, nullable=False, index=True)
     service_id = Column(Integer, nullable=False, index=True)
     year = Column(Integer, nullable=False, index=True)
     month = Column(Integer, nullable=False, index=True)
@@ -138,7 +138,7 @@ class EBStatements(Base):
     __tablename__ = "eb_statements"
 
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    windmill_id = Column(Integer)
+    windmill_id = Column(BigInteger)
     month = Column(String(20))
     year = Column(Integer, nullable=False)
     pdf_file_path = Column(String(255))
@@ -159,7 +159,7 @@ class EBStatementsDetails(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     eb_header_id = Column(Integer, ForeignKey("eb_statements.id"), nullable=False)
     company_name = Column(String(255))
-    windmill_id = Column(Integer)
+    windmill_id = Column(BigInteger)
     slots = Column(Integer)
     net_unit = Column(DECIMAL(12, 2))
     banking_units = Column(DECIMAL(12, 2))

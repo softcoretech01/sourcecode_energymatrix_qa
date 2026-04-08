@@ -213,34 +213,38 @@ export default function EBBillList() {
                             <Table>
                                 <TableHeader className="bg-sidebar">
                                     <TableRow>
-                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap w-1/5 pl-6">Year</TableHead>
-                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap w-1/5">Month</TableHead>
-                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap text-center w-1/5">PDF</TableHead>
-                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap w-1/5">Submitted Date and Time</TableHead>
-                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap w-1/5">Submitted By</TableHead>
+                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap pl-6">Customer Name</TableHead>
+                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap">SC Number</TableHead>
+                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap">Year</TableHead>
+                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap">Month</TableHead>
+                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap text-center">PDF</TableHead>
+                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap">Submitted Date and Time</TableHead>
+                                        <TableHead className="font-semibold text-white h-10 whitespace-nowrap">Submitted By</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {loading ? (
                                         <TableRow>
-                                            <TableCell colSpan={5} className="text-center py-4 text-slate-500">
+                                            <TableCell colSpan={7} className="text-center py-4 text-slate-500">
                                                 Loading EB Bills...
                                             </TableCell>
                                         </TableRow>
                                     ) : ebBills.length === 0 ? (
                                         <TableRow>
-                                            <TableCell colSpan={5} className="text-center py-4 text-slate-500">
+                                            <TableCell colSpan={7} className="text-center py-4 text-slate-500">
                                                 No EB Bills found
                                             </TableCell>
                                         </TableRow>
                                     ) : (
                                         ebBills.map((row, idx) => (
                                             <TableRow key={idx} className="hover:bg-slate-50">
-                                                <TableCell className="py-2 text-sm font-medium w-1/5 pl-6">{row.created_at ? format(new Date(row.created_at), "yyyy") : "-"}</TableCell>
-                                                <TableCell className="py-2 text-sm w-1/5">
+                                                <TableCell className="py-2 text-sm font-bold text-slate-900 pl-6 uppercase">{row.customer_name || "-"}</TableCell>
+                                                <TableCell className="py-2 text-sm font-mono text-red-700 font-semibold">{row.service_number || "-"}</TableCell>
+                                                <TableCell className="py-2 text-sm font-medium">{row.bill_year || "-"}</TableCell>
+                                                <TableCell className="py-2 text-sm">
                                                     {months.find(m => m.value === String(row.bill_month))?.label || row.bill_month}
                                                 </TableCell>
-                                                <TableCell className="py-2 text-center w-1/5">
+                                                <TableCell className="py-2 text-center">
                                                     <Button
                                                         variant="ghost"
                                                         size="icon"
@@ -250,10 +254,10 @@ export default function EBBillList() {
                                                         <FileText className="h-4 w-4" />
                                                     </Button>
                                                 </TableCell>
-                                                <TableCell className="py-2 text-sm w-1/5">
+                                                <TableCell className="py-2 text-sm whitespace-nowrap">
                                                     {row.created_at ? format(new Date(row.created_at), "dd MMM yyyy") + " : " + format(new Date(row.created_at), "hh:mm a") : "-"}
                                                 </TableCell>
-                                                <TableCell className="py-2 text-sm w-1/5">{row.created_by || "-"}</TableCell>
+                                                <TableCell className="py-2 text-sm uppercase font-medium">{row.created_by || "-"}</TableCell>
                                             </TableRow>
                                         ))
                                     )}

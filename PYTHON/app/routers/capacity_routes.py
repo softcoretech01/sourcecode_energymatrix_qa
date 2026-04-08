@@ -48,9 +48,9 @@ def create_capacity(data: CapacityCreate, user=Depends(get_current_user)):
             # Wait, if they want 0.250, rstrip('0') will make it 0.25.
             # I'll use a fixed format or just the raw value if it's a string.
             val_to_save = str(data.capacity) 
-            cursor.execute("UPDATE master_capacity SET capacity=%s WHERE id=%s", (val_to_save, new_id))
+            cursor.callproc("sp_update_capacity_val", (new_id, val_to_save))
         except:
-            cursor.execute("UPDATE master_capacity SET capacity=%s WHERE id=%s", (str(data.capacity), new_id))
+            cursor.callproc("sp_update_capacity_val", (new_id, str(data.capacity)))
 
     conn.commit()
 
@@ -86,7 +86,7 @@ def get_capacity(user=Depends(get_current_user)):
     conn = get_db()
     cursor = conn.cursor(pymysql.cursors.DictCursor)
 
-    cursor.execute("SELECT * FROM master_capacity")
+    cursor.callproc("sp_get_capacity")
 
     data = cursor.fetchall()
     for item in data:
@@ -106,10 +106,7 @@ def get_capacity_by_id(id: int, user=Depends(get_current_user)):
     conn = get_db()
     cursor = conn.cursor(pymysql.cursors.DictCursor)
 
-    cursor.execute(
-        "SELECT * FROM master_capacity WHERE id=%s",
-        (id,)
-    )
+    cursor.callproc("sp_get_capacity_by_id", (id,))
 
     data = cursor.fetchone()
     if data and "capacity" in data and data["capacity"] is not None:
@@ -140,7 +137,7 @@ def update_capacity(id: int, data: dict, user=Depends(get_current_user)):
 
     # Ensure the capacity is stored exactly as provided
     val_to_save = str(data.get("capacity"))
-    cursor.execute("UPDATE master_capacity SET capacity=%s WHERE id=%s", (val_to_save, id))
+    cursor.callproc("sp_update_capacity_val", (id, val_to_save))
 
     conn.commit()
 

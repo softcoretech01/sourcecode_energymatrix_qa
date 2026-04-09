@@ -118,7 +118,7 @@ export default function ShareHoldingsList() {
 
     const fetchTotalCustomerShares = async () => {
         try {
-            const res = await api.get("/total-shares");
+            const res = await api.get("/total-shares/");
             const data = Array.isArray(res.data) ? res.data : [res.data];
             if (data.length > 0) {
                 setTotalCustomerShares(Number(data[0]?.total_customer_shares || 0));
@@ -131,47 +131,47 @@ export default function ShareHoldingsList() {
 
 
 
-const handleExportExcel = () => {
-  if (filteredData.length === 0) {
-    alert("No data to export");
-    return;
-  }
+    const handleExportExcel = () => {
+        if (filteredData.length === 0) {
+            alert("No data to export");
+            return;
+        }
 
-  const header = ["Customer", "Shareholding", "Status"];
-  const rows = filteredData.map((row) => [
-    row.customer_name,
-    row.share_quantity,
-    row.is_submitted === 1 ? "Posted" : "Saved",
-  ]);
+        const header = ["Customer", "Shareholding", "Status"];
+        const rows = filteredData.map((row) => [
+            row.customer_name,
+            row.share_quantity,
+            row.is_submitted === 1 ? "Posted" : "Saved",
+        ]);
 
-  const csvContent =
-    "data:text/csv;charset=utf-8," +
-    [header, ...rows].map((e) => e.join(",")).join("\n");
+        const csvContent =
+            "data:text/csv;charset=utf-8," +
+            [header, ...rows].map((e) => e.join(",")).join("\n");
 
-  const encodedUri = encodeURI(csvContent);
-  const link = document.createElement("a");
-  link.setAttribute("href", encodedUri);
-  link.setAttribute("download", `share_holdings_${new Date().toISOString()}.csv`);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-};
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `share_holdings_${new Date().toISOString()}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
 
 
     const filteredData = masterData.filter(row => {
-    if (!row) return false;
-    
-    const matchesCustomer =
-        appliedCustomer === "" || (row?.customer_name ? row.customer_name.toString().toLowerCase().includes(appliedCustomer.toLowerCase()) : true);
+        if (!row) return false;
 
-    const matchesGlobal =
-        searchKeyword === "" ||
-        Object.values(row || {}).some(val =>
-            val ? String(val).toLowerCase().includes(searchKeyword.toLowerCase()) : false
-        );
+        const matchesCustomer =
+            appliedCustomer === "" || (row?.customer_name ? row.customer_name.toString().toLowerCase().includes(appliedCustomer.toLowerCase()) : true);
 
-    return matchesCustomer && matchesGlobal;
-});
+        const matchesGlobal =
+            searchKeyword === "" ||
+            Object.values(row || {}).some(val =>
+                val ? String(val).toLowerCase().includes(searchKeyword.toLowerCase()) : false
+            );
+
+        return matchesCustomer && matchesGlobal;
+    });
 
     return (
         <div className="p-2 bg-slate-50 min-h-screen font-sans">
@@ -193,11 +193,11 @@ const handleExportExcel = () => {
                                     </SelectTrigger>
                                     <SelectContent>
                                         <SelectItem value="all">All Customers</SelectItem>
-                                       {customers.map(cust => (
-    <SelectItem key={cust.id} value={cust.customer_name}>
-        {cust.customer_name}
-    </SelectItem>
-))}
+                                        {customers.map(cust => (
+                                            <SelectItem key={cust.id} value={cust.customer_name}>
+                                                {cust.customer_name}
+                                            </SelectItem>
+                                        ))}
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -211,12 +211,12 @@ const handleExportExcel = () => {
                                 + New
                             </Button>
                             <Button
-  size="sm"
-  className="h-9 text-sm bg-[#DAA520] hover:bg-[#B8860B] text-white px-4"
-  onClick={handleExportExcel}
->
-  Export Excel
-</Button>
+                                size="sm"
+                                className="h-9 text-sm bg-[#DAA520] hover:bg-[#B8860B] text-white px-4"
+                                onClick={handleExportExcel}
+                            >
+                                Export Excel
+                            </Button>
                             <Button size="sm" className="h-9 text-sm bg-red-600 hover:bg-red-700 text-white px-4" onClick={handleCancel}>
                                 Cancel
                             </Button>
@@ -299,32 +299,32 @@ const handleExportExcel = () => {
                                                 <TableCell className="py-2 text-slate-600 text-sm">{row.customer_name}</TableCell>
                                                 <TableCell className="py-2 text-slate-600 text-sm">{formatNumber(row.share_quantity)}</TableCell>
                                                 <TableCell className="py-2">
-    <Badge
-        className={cn(
-            "font-bold w-6 h-6 rounded flex items-center justify-center p-0 border-none",
-            row.is_submitted === 1
-                ? "bg-emerald-600 hover:bg-emerald-700 text-white"
-                : "bg-red-600 hover:bg-red-700 text-white"
-        )}
-    >
-        {row.is_submitted === 1 ? "P" : "S"}
-    </Badge>
-</TableCell>
+                                                    <Badge
+                                                        className={cn(
+                                                            "font-bold w-6 h-6 rounded flex items-center justify-center p-0 border-none",
+                                                            row.is_submitted === 1
+                                                                ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                                                                : "bg-red-600 hover:bg-red-700 text-white"
+                                                        )}
+                                                    >
+                                                        {row.is_submitted === 1 ? "P" : "S"}
+                                                    </Badge>
+                                                </TableCell>
                                                 <TableCell className="py-2 text-center">
                                                     <div className="flex justify-center gap-1 items-center">
                                                         <StatusSlider
                                                             status={row.status}
                                                             onToggle={() => toggleShareStatus(row)}
                                                         />
-                                                       <Button
-  variant="ghost"
-  size="icon"
-  className="h-6 w-6 text-primary hover:text-primary hover:bg-primary/10"
-  onClick={() => navigate(`/master/share-holdings/edit/${row.id}`)}
-  title="Edit"
->
-  <Edit className="h-4 w-4" />
-</Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-6 w-6 text-primary hover:text-primary hover:bg-primary/10"
+                                                            onClick={() => navigate(`/master/share-holdings/edit/${row.id}`)}
+                                                            title="Edit"
+                                                        >
+                                                            <Edit className="h-4 w-4" />
+                                                        </Button>
                                                     </div>
                                                 </TableCell>
                                             </TableRow>

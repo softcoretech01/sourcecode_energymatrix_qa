@@ -342,7 +342,7 @@ export function AppSidebar() {
                         </SidebarMenuItem>
                     </SidebarMenu>
                     <div className="px-4 py-2 text-xs text-sidebar-foreground/70 text-center group-data-[collapsible=icon]:hidden">
-                        version 1.1.5
+                        version 1.1.6
                     </div>
                 </SidebarGroup>
             </SidebarContent>

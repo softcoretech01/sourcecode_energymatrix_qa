@@ -57,20 +57,32 @@ const EBStatementPdf = () => {
                             if (detailsRes.data.status === "success") {
                                 const dbData = detailsRes.data.data || {};
                                 const extData = res.data.data || {};
+
+                                // Merge slots: prefer DB if non-zero, else use extracted
+                                const hasDbSlots = dbData.slots && Object.values(dbData.slots).some(v => parseFloat(String(v)) !== 0);
+                                const mergedSlots = hasDbSlots ? dbData.slots : extData.slots;
+
+                                // Merge banking_slots: prefer DB if non-zero, else use extracted
+                                const hasDbBanking = dbData.banking_slots && Object.values(dbData.banking_slots).some(v => parseFloat(String(v)) !== 0);
+                                const mergedBanking = hasDbBanking ? dbData.banking_slots : extData.banking_slots;
+
                                 const mergedCharges = (dbData.charges || []).map((dbC: any, idx: number) => ({
                                     ...dbC,
                                     name: dbC.name || extData.charges?.[idx]?.name || "Other Charge"
                                 }));
+
                                 setData({
                                     ...extData,
                                     ...dbData,
+                                    slots: mergedSlots,
+                                    banking_slots: mergedBanking,
                                     charges: mergedCharges.length > 0 ? mergedCharges : extData.charges,
                                     company_name: extData.company_name,
                                     windmill_number: extData.windmill_number,
                                     month: extData.month || dbData.month,
                                     year: extData.year || dbData.year
                                 });
-                                setSaved(true);
+                                setSaved(hasDbSlots || hasDbBanking || mergedCharges.length > 0);
                             } else if (!storedParsed) {
                                 setData(res.data.data);
                             }

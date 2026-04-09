@@ -145,26 +145,6 @@ async def update_customer(customer_id: int, data: CustomerUpdate, user: dict = D
 
     validate_customer(cursor, customer_id)
 
-    # if attempting to post (is_submitted=1) ensure all required child records exist
-    if data.is_submitted == 1:
-        # check service numbers
-        cursor.callproc("sp_check_customer_service_exists", (customer_id,))
-        if cursor.fetchone() is None:
-            cursor.close()
-            conn.close()
-            raise HTTPException(status_code=400, detail="Cannot post customer – at least one service number is required")
-        # check contacts
-        cursor.callproc("sp_check_customer_contact_exists", (customer_id,))
-        if cursor.fetchone() is None:
-            cursor.close()
-            conn.close()
-            raise HTTPException(status_code=400, detail="Cannot post customer – at least one contact is required")
-        # check agreed units
-        cursor.callproc("sp_check_customer_agreed_exists", (customer_id,))
-        if cursor.fetchone() is None:
-            cursor.close()
-            conn.close()
-            raise HTTPException(status_code=400, detail="Cannot post customer – agreed units must be specified")
 
     cursor.execute("CALL sp_update_customer(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)", (
         data.customer_name,
@@ -216,7 +196,7 @@ async def add_se_number(customer_id: int, data: dict, user: dict = Depends(get_c
         conn.close()
         raise HTTPException(status_code=400, detail="This Service Number is already added for this customer.")
 
-    cursor.execute("CALL sp_add_customer_se(%s,%s,%s,%s,%s,%s,%s,%s)", (
+    cursor.execute("CALL sp_add_customer_se(%s,%s,%s,%s,%s,%s,%s,%s,%s)", (
         customer_id,
         data["se_number"],
         data.get("kva"),
@@ -224,7 +204,8 @@ async def add_se_number(customer_id: int, data: dict, user: dict = Depends(get_c
         data.get("status", 1),
         data.get("remarks"),
         data.get("is_submitted", 0),
-        user["id"]
+        user["id"],
+        data.get("per_cost_unit", 0.0)
     ))
 
     conn.commit()
@@ -296,7 +277,8 @@ async def update_customer_se(customer_id: int, se_id: int, data: dict, user: dic
         data.get("status", 1),
         data.get("remarks"),
         data.get("is_submitted", 0),
-        user["id"]
+        user["id"],
+        data.get("per_cost_unit", 0.0)
     ))
 
     conn.commit()

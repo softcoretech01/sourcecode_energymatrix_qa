@@ -32,3 +32,10 @@ export function formatDate(value: string | Date | number | null | undefined): st
   }
   return format(date, "dd-MMM-yyyy");
 }
+
+export function formatNumber(value: number | string | null | undefined): string {
+  if (value === null || value === undefined || value === "") return "0";
+  const num = typeof value === "string" ? parseFloat(value.replace(/,/g, "")) : value;
+  if (isNaN(num)) return "0";
+  return new Intl.NumberFormat('en-IN').format(num);
+}

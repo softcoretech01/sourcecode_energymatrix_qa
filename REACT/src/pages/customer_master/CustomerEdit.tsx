@@ -471,19 +471,6 @@ export default function CustomerEdit(): JSX.Element {
     const handlePost = async () => {
         if (isSaving) return;
         // require at least one entry in each of the tabs
-        if (seNumbers.length === 0) {
-            toast.error("Please add at least one service number before posting.");
-            return;
-        }
-        if (contacts.length === 0) {
-            toast.error("Please add at least one contact before posting.");
-            return;
-        }
-        if (!totalAgreedUnits) {
-            toast.error("Please specify agreed units before posting.");
-            return;
-        }
-
         setIsSaving(true);
         try {
             await performSave(true);

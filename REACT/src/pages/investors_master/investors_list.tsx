@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/table";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { cn, formatNumber } from "@/lib/utils";
 
 export default function InvestorsList() {
     const navigate = useNavigate();
@@ -198,10 +198,10 @@ export default function InvestorsList() {
                                 <h2 className="text-sm font-semibold text-primary pl-2 whitespace-nowrap">Investors</h2>
                                 <div className="flex gap-5 border-l border-primary/20 pl-4 items-center">
                                     <span className="text-[13px] font-bold text-[#B22222]">
-                                        Total Investor shares assigned: <span className="text-black ml-1">{totalAssigned}</span>
+                                        Total Investor shares assigned: <span className="text-black ml-1">{formatNumber(totalAssigned)}</span>
                                     </span>
                                     <span className="text-[13px] font-bold text-[#B22222]">
-                                        Balance: <span className="text-black ml-1">{balance}</span>
+                                        Balance: <span className="text-black ml-1">{formatNumber(balance)}</span>
                                     </span>
                                 </div>
                             </div>
@@ -246,7 +246,7 @@ export default function InvestorsList() {
                                         filteredData.map((row) => (
                                             <TableRow key={row.id} className="hover:bg-slate-50 bg-white">
                                                 <TableCell className="py-2 text-slate-600 font-medium text-sm">{row.investorName}</TableCell>
-                                                <TableCell className="py-2 text-slate-600 font-medium text-sm">{row.shareQuantity}</TableCell>
+                                                <TableCell className="py-2 text-slate-600 font-medium text-sm">{formatNumber(row.shareQuantity)}</TableCell>
                                                 <TableCell className="py-2">
                                                     <Badge
                                                         className={cn(

@@ -224,7 +224,7 @@ export default function CustomerAdd() {
             payload.email = email;
         }
         try {
-            const endpoint = createdCustomerId 
+            const endpoint = createdCustomerId
                 ? `${import.meta.env.VITE_BACKEND_URL}/api/customers/${createdCustomerId}`
                 : `${import.meta.env.VITE_BACKEND_URL}/api/customers`;
             const method = createdCustomerId ? "PUT" : "POST";
@@ -239,7 +239,7 @@ export default function CustomerAdd() {
             });
             const data = await res.json();
             console.log("CustomerAdd saveCustomer response:", data);
-            
+
             if (res.ok) {
                 if (!createdCustomerId && data.id) {
                     setCreatedCustomerId(data.id.toString());
@@ -471,7 +471,7 @@ export default function CustomerAdd() {
         if (email) payload.email = email;
 
         try {
-            const endpoint = createdCustomerId 
+            const endpoint = createdCustomerId
                 ? `${import.meta.env.VITE_BACKEND_URL}/api/customers/${createdCustomerId}`
                 : `${import.meta.env.VITE_BACKEND_URL}/api/customers`;
             const method = createdCustomerId ? "PUT" : "POST";

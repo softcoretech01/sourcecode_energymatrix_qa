@@ -6,6 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/components/ui/use-toast";
 import api from "@/services/api";
+import { formatNumber } from "@/lib/utils";
 
 export default function ShareHoldingsAdd() {
     const navigate = useNavigate();
@@ -13,7 +14,7 @@ export default function ShareHoldingsAdd() {
     const [totalShares, setTotalShares] = useState<string>("");
     const [persistedInvestorShares, setPersistedInvestorShares] = useState<number>(0);
     const [computedInvestorShares, setComputedInvestorShares] = useState<number>(0);
-    const totalCustomerShares = (Number(totalShares || 0) - computedInvestorShares).toString();
+    const [totalCustomerShares, setTotalCustomerShares] = useState<string>("0");
 
     const [currentCustomer, setCurrentCustomer] = useState("");
     const [currentQuantity, setCurrentQuantity] = useState("");
@@ -73,6 +74,7 @@ export default function ShareHoldingsAdd() {
                 const first = res.data[0];
                 setTotalShares(String(first.total_company_shares ?? ""));
                 setPersistedInvestorShares(Number(first.total_investor_shares ?? first.investor_shares ?? 0));
+                setTotalCustomerShares(String(first.total_customer_shares ?? 0));
                 setTotalId(first.id ?? 1);
 
                 // If there are extra rows, delete them so only one row exists
@@ -139,6 +141,8 @@ export default function ShareHoldingsAdd() {
             await fetchInvestorTotal();
 
             setPersistedInvestorShares(Number(computedInvestorShares));
+            // Fetch total shares again to get the computed total_customer_shares
+            await fetchTotalShares();
 
             toast({ title: "Total shares stored" });
         } catch (error: unknown) {
@@ -345,7 +349,7 @@ export default function ShareHoldingsAdd() {
                             <h2 className="text-sm font-semibold text-slate-800">Add Shareholder</h2>
                             <div className="flex items-center gap-4">
                                 <span className="text-sm font-semibold text-slate-700">
-                                    Remaining Customer Share: <span className="text-[#cb4154]">{remainingCustomerShare}</span>
+                                    Remaining Customer Share: <span className="text-[#cb4154]">{formatNumber(remainingCustomerShare)}</span>
                                 </span>
                                 {remainingCustomerShare === 0 && Number(totalCustomerShares) > 0 && (
                                     <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-medium border border-red-200">

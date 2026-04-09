@@ -145,26 +145,26 @@ export function AppSidebar() {
                     url: "/windmill",
                     icon: CloudSun,
                 },
-                //{
-                //    title: "EB Statement",
-                //    url: "/eb-statement",
-                //    icon: FileText,
-                //},
-                //{
-                //    title: "Cust Cons Req",
-                //    url: "/consumption-request",
-                //    icon: ClipboardList,
-                //},
+                {
+                    title: "EB Statement",
+                    url: "/eb-statement",
+                    icon: FileText,
+                },
+                {
+                    title: "Cust Cons Req",
+                    url: "/consumption-request",
+                    icon: ClipboardList,
+                },
                 //{
                 //    title: "Energy Allotment",
                 //    url: "/energy-allotment",
                 //    icon: Zap,
                 //},
-                //{
-                //    title: "Client EB Bill",
-                //    url: "/windmill/eb-bill",
-                //    icon: CreditCard,
-                //},
+                {
+                    title: "Client EB Bill",
+                    url: "/windmill/eb-bill",
+                    icon: CreditCard,
+                },
                 //{
                 //    title: "Actual Allotment",
                 //    url: "/windmill/actuals",
@@ -180,18 +180,18 @@ export function AppSidebar() {
 
             ]
         },
-        //{
-        //    title: "Solar",
-        //    url: "#",
-        //    icon: CloudSun,
-        //    items: [
-        //        {
-        //            title: "EB Statement-Solar",
-        //            url: "/eb-statement-solar",
-        //            icon: CreditCard,
-        //        },
-        //    ]
-        //},
+        {
+            title: "Solar",
+            url: "#",
+            icon: CloudSun,
+            items: [
+                {
+                    title: "EB Statement-Solar",
+                    url: "/eb-statement-solar",
+                    icon: CreditCard,
+                },
+            ]
+        },
         // {
         //     title: "SOP",
         //     url: "#",
@@ -342,7 +342,7 @@ export function AppSidebar() {
                         </SidebarMenuItem>
                     </SidebarMenu>
                     <div className="px-4 py-2 text-xs text-sidebar-foreground/70 text-center group-data-[collapsible=icon]:hidden">
-                        version 1.1.3
+                        version 1.1.4
                     </div>
                 </SidebarGroup>
             </SidebarContent>

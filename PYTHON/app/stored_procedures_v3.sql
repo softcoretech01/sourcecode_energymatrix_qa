@@ -14,8 +14,34 @@ BEGIN
     IF p_val REGEXP '^[0-9]+$' THEN
         SELECT windmill_number FROM masters.master_windmill WHERE id = CAST(p_val AS UNSIGNED);
     ELSE
-        SELECT windmill_number FROM masters.master_windmill WHERE windmill_number = p_val;
+        SELECT windmill_number FROM masters.master_windmill WHERE windmill_number = p_val COLLATE utf8mb4_unicode_ci;
     END IF;
+END //
+
+DROP PROCEDURE IF EXISTS masters.sp_mapping_charge_id //
+CREATE DEFINER=`root`@`localhost` PROCEDURE masters.sp_mapping_charge_id(IN p_name VARCHAR(255), IN p_code VARCHAR(100))
+BEGIN
+    -- 1) Try match by charge description
+    SELECT id FROM masters.master_consumption_chargers 
+    WHERE TRIM(LOWER(charge_description)) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', TRIM(LOWER(p_name)), '%') COLLATE utf8mb4_unicode_ci
+    LIMIT 1;
+END //
+
+DROP PROCEDURE IF EXISTS masters.sp_mapping_charge_id_by_code //
+CREATE DEFINER=`root`@`localhost` PROCEDURE masters.sp_mapping_charge_id_by_code(IN p_code VARCHAR(100))
+BEGIN
+    SELECT id FROM masters.master_consumption_chargers 
+    WHERE TRIM(LOWER(charge_code)) COLLATE utf8mb4_unicode_ci = TRIM(LOWER(p_code)) COLLATE utf8mb4_unicode_ci
+    LIMIT 1;
+END //
+
+DROP PROCEDURE IF EXISTS masters.sp_mapping_charge_id_fallback //
+CREATE DEFINER=`root`@`localhost` PROCEDURE masters.sp_mapping_charge_id_fallback(IN p_name VARCHAR(255))
+BEGIN
+    SELECT id FROM masters.master_consumption_chargers 
+    WHERE (TRIM(LOWER(charge_name)) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', TRIM(LOWER(p_name)), '%') COLLATE utf8mb4_unicode_ci)
+       OR (TRIM(LOWER(charge_code)) COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', TRIM(LOWER(p_name)), '%') COLLATE utf8mb4_unicode_ci)
+    LIMIT 1;
 END //
 
 DROP PROCEDURE IF EXISTS masters.sp_get_solar_windmill_dropdown //
@@ -36,34 +62,6 @@ BEGIN
     ORDER BY windmill_number;
 END //
 
-DROP PROCEDURE IF EXISTS masters.sp_mapping_charge_id //
-CREATE DEFINER=`root`@`localhost` PROCEDURE masters.sp_mapping_charge_id(IN p_name VARCHAR(255), IN p_code VARCHAR(100))
-BEGIN
-    -- 1) Try match by charge description
-    SELECT id FROM masters.master_consumption_chargers 
-    WHERE TRIM(LOWER(charge_description)) LIKE CONCAT('%', TRIM(LOWER(p_name)), '%')
-    LIMIT 1;
-    
-    -- 2) If not found, calling code will check if it should try code lookup
-END //
-
-DROP PROCEDURE IF EXISTS masters.sp_mapping_charge_id_by_code //
-CREATE DEFINER=`root`@`localhost` PROCEDURE masters.sp_mapping_charge_id_by_code(IN p_code VARCHAR(100))
-BEGIN
-    SELECT id FROM masters.master_consumption_chargers 
-    WHERE TRIM(LOWER(charge_code)) = TRIM(LOWER(p_code))
-    LIMIT 1;
-END //
-
-DROP PROCEDURE IF EXISTS masters.sp_mapping_charge_id_fallback //
-CREATE DEFINER=`root`@`localhost` PROCEDURE masters.sp_mapping_charge_id_fallback(IN p_name VARCHAR(255))
-BEGIN
-    SELECT id FROM masters.master_consumption_chargers 
-    WHERE TRIM(LOWER(charge_name)) LIKE CONCAT('%', TRIM(LOWER(p_name)), '%') 
-       OR TRIM(LOWER(charge_code)) LIKE CONCAT('%', TRIM(LOWER(p_name)), '%')
-    LIMIT 1;
-END //
-
 DROP PROCEDURE IF EXISTS masters.sp_check_configuration_row_exists //
 CREATE DEFINER=`root`@`localhost` PROCEDURE masters.sp_check_configuration_row_exists(IN p_id INT)
 BEGIN
@@ -78,17 +76,26 @@ BEGIN
     WHERE status = 'Active' AND is_submitted = 1;
 END //
 
+DROP PROCEDURE IF EXISTS masters.sp_get_consumption_charges //
+CREATE DEFINER=`root`@`localhost` PROCEDURE masters.sp_get_consumption_charges()
+BEGIN
+    SELECT charge_code, charge_name 
+    FROM masters.master_consumption_chargers 
+    WHERE status = 1;
+END //
+
 
 -- =============================================
 -- DATABASE: solar
 -- =============================================
 USE solar //
 
+
 DROP PROCEDURE IF EXISTS solar.sp_check_eb_solar_duplicate //
 CREATE DEFINER=`root`@`localhost` PROCEDURE solar.sp_check_eb_solar_duplicate(IN p_solar_id VARCHAR(255), IN p_month VARCHAR(50), IN p_year INT)
 BEGIN
     SELECT id FROM solar.eb_statement_solar 
-    WHERE solar_id = p_solar_id AND month = p_month AND year = p_year;
+    WHERE solar_id = p_solar_id AND month = p_month COLLATE utf8mb4_unicode_ci AND year = p_year;
 END //
 
 DROP PROCEDURE IF EXISTS solar.sp_create_eb_solar_header //
@@ -135,8 +142,8 @@ BEGIN
     FROM solar.eb_statement_solar es
     WHERE (p_solar_id IS NULL OR es.solar_id = p_solar_id)
       AND (p_year IS NULL OR es.year = p_year)
-      AND (p_month IS NULL OR es.month = p_month)
-      AND (p_keyword IS NULL OR es.pdf_file_path LIKE CONCAT('%', p_keyword, '%'));
+      AND (p_month IS NULL OR es.month = p_month COLLATE utf8mb4_unicode_ci)
+      AND (p_keyword IS NULL OR es.pdf_file_path LIKE CONCAT('%', p_keyword, '%') COLLATE utf8mb4_unicode_ci);
 
     -- Result Set 2: Paginated Data
     SELECT es.id, es.solar_id, es.month, es.year, es.pdf_file_path, es.is_submitted, 
@@ -145,8 +152,8 @@ BEGIN
     LEFT JOIN masters.users u ON es.created_by = u.id
     WHERE (p_solar_id IS NULL OR es.solar_id = p_solar_id)
       AND (p_year IS NULL OR es.year = p_year)
-      AND (p_month IS NULL OR es.month = p_month)
-      AND (p_keyword IS NULL OR es.pdf_file_path LIKE CONCAT('%', p_keyword, '%'))
+      AND (p_month IS NULL OR es.month = p_month COLLATE utf8mb4_unicode_ci)
+      AND (p_keyword IS NULL OR es.pdf_file_path LIKE CONCAT('%', p_keyword, '%') COLLATE utf8mb4_unicode_ci)
     ORDER BY submitted_time DESC
     LIMIT p_limit OFFSET p_offset;
 END //
@@ -184,13 +191,6 @@ END //
 -- =============================================
 USE windmill //
 
-DROP PROCEDURE IF EXISTS windmill.sp_check_eb_statement_duplicate //
-CREATE DEFINER=`root`@`localhost` PROCEDURE windmill.sp_check_eb_statement_duplicate(IN p_windmill_id BIGINT, IN p_month VARCHAR(50), IN p_year INT)
-BEGIN
-    SELECT id FROM windmill.eb_statements 
-    WHERE windmill_id = p_windmill_id AND month = p_month AND year = p_year;
-END //
-
 DROP PROCEDURE IF EXISTS windmill.sp_create_eb_statement_header //
 CREATE DEFINER=`root`@`localhost` PROCEDURE windmill.sp_create_eb_statement_header(
     IN p_windmill_id BIGINT,
@@ -205,6 +205,19 @@ BEGIN
     SELECT LAST_INSERT_ID() AS id;
 END //
 
+DROP PROCEDURE IF EXISTS windmill.sp_check_eb_statement_duplicate //
+CREATE DEFINER=`root`@`localhost` PROCEDURE windmill.sp_check_eb_statement_duplicate(
+    IN p_windmill_id BIGINT, 
+    IN p_month VARCHAR(50), 
+    IN p_year INT
+)
+BEGIN
+    SELECT id FROM windmill.eb_statements 
+    WHERE windmill_id = p_windmill_id 
+      AND month = p_month COLLATE utf8mb4_unicode_ci
+      AND year = p_year;
+END //
+
 DROP PROCEDURE IF EXISTS windmill.sp_get_eb_statement_list //
 CREATE DEFINER=`root`@`localhost` PROCEDURE windmill.sp_get_eb_statement_list(
     IN p_windmill_number VARCHAR(100),
@@ -217,9 +230,9 @@ BEGIN
     FROM windmill.eb_statements es
     LEFT JOIN masters.master_windmill mw ON es.windmill_id = mw.id
     LEFT JOIN masters.users u ON es.created_by = u.id
-    WHERE (p_windmill_number IS NULL OR mw.windmill_number = p_windmill_number)
+    WHERE (p_windmill_number IS NULL OR mw.windmill_number = p_windmill_number COLLATE utf8mb4_unicode_ci)
       AND (p_year IS NULL OR es.year = p_year)
-      AND (p_month IS NULL OR es.month = p_month)
+      AND (p_month IS NULL OR es.month = p_month COLLATE utf8mb4_unicode_ci)
     ORDER BY submitted_time DESC;
 END //
 
@@ -324,16 +337,145 @@ BEGIN
     VALUES (p_header_id, p_charge_id, p_amount, p_user_id);
 END //
 
+DROP PROCEDURE IF EXISTS windmill.insert_eb_bill_adjustment_charge //
+CREATE DEFINER=`root`@`localhost` PROCEDURE windmill.insert_eb_bill_adjustment_charge(
+    IN p_eb_bill_header_id INT,
+    IN p_energy_number VARCHAR(50),
+    IN p_c001 DECIMAL(12,2),
+    IN p_c002 DECIMAL(12,2),
+    IN p_c003 DECIMAL(12,2),
+    IN p_c004 DECIMAL(12,2),
+    IN p_c005 DECIMAL(12,2),
+    IN p_c006 DECIMAL(12,2),  
+    IN p_c007 DECIMAL(12,2),
+    IN p_c008 DECIMAL(12,2),
+    IN p_c010 DECIMAL(12,2),
+    IN p_wheeling_charges DECIMAL(12,2),
+    IN p_created_by INT,
+    IN p_modified_by INT
+)
+BEGIN
+    DECLARE v_calculated_wheeling DECIMAL(12,2);
+    DECLARE v_bill_year INT;
+    DECLARE v_bill_month INT;
+    DECLARE v_customer_id INT;
+    DECLARE v_sc_id INT;
+
+    -- Handler
+    DECLARE CONTINUE HANDLER FOR NOT FOUND 
+    SET v_bill_year = NULL, v_bill_month = NULL, 
+        v_customer_id = NULL, v_sc_id = NULL;
+
+    -- Get header/customer direct from eb_bill
+    SELECT bill_year, bill_month, customer_id, sc_id
+    INTO v_bill_year, v_bill_month, v_customer_id, v_sc_id
+    FROM eb_bill
+    WHERE id = p_eb_bill_header_id
+    LIMIT 1;
+
+    -- Calculate
+    SET v_calculated_wheeling = ROUND(COALESCE(p_wheeling_charges,0) / 0.54, 2);
+
+    -- Insert adjustment
+    INSERT INTO eb_bill_adjustment_charges(
+        eb_bill_header_id,
+        energy_number,
+        c001,c002,c003,c004,c005,c006,c007,c008,c010,
+        wheeling_charges,
+        created_by,created_at,modified_by,modified_at
+    ) VALUES (
+        p_eb_bill_header_id,
+        p_energy_number COLLATE utf8mb4_unicode_ci,
+        COALESCE(p_c001,0),
+        COALESCE(p_c002,0),
+        COALESCE(p_c003,0),
+        COALESCE(p_c004,0),
+        COALESCE(p_c005,0),
+        COALESCE(p_c006,0),
+        COALESCE(p_c007,0),
+        COALESCE(p_c008,0),
+        COALESCE(p_c010,0),
+        COALESCE(p_wheeling_charges,0),
+        p_created_by,NOW(),p_modified_by,NOW()
+    );
+
+    -- SAFE insert into actual
+    IF v_bill_year IS NOT NULL 
+       AND v_bill_month IS NOT NULL
+       AND v_customer_id IS NOT NULL
+       AND v_sc_id IS NOT NULL THEN
+
+        IF NOT EXISTS (
+            SELECT 1 FROM actual
+            WHERE client_eb_id = p_eb_bill_header_id
+            AND energy_number = p_energy_number COLLATE utf8mb4_unicode_ci
+            AND actual_year = v_bill_year
+            AND actual_month = v_bill_month
+        ) THEN
+
+            INSERT INTO actual(
+                client_eb_id,
+                actual_year,
+                actual_month,
+                customer_id,
+                sc_id,
+                energy_number,
+                calculated_wheeling_value
+            ) VALUES (
+                p_eb_bill_header_id,
+                v_bill_year,
+                v_bill_month,
+                v_customer_id,
+                v_sc_id,
+                p_energy_number COLLATE utf8mb4_unicode_ci,
+                v_calculated_wheeling
+            );
+
+        END IF;
+
+    END IF;
+
+    SELECT LAST_INSERT_ID() AS inserted_id;
+
+END //
+
 DROP PROCEDURE IF EXISTS windmill.sp_mark_eb_statement_submitted //
 CREATE DEFINER=`root`@`localhost` PROCEDURE windmill.sp_mark_eb_statement_submitted(IN p_id INT)
 BEGIN
     UPDATE windmill.eb_statements SET is_submitted = 1, modified_at = NOW() WHERE id = p_id;
 END //
 
-DROP PROCEDURE IF EXISTS windmill.sp_update_windmill_daily_transaction_submitted //
+DROP PROCEDURE IF EXISTS windmill.update_windmill_daily_transaction_submitted //
 CREATE DEFINER=`root`@`localhost` PROCEDURE windmill.sp_update_windmill_daily_transaction_submitted(IN p_id INT, IN p_val INT)
 BEGIN
     UPDATE windmill.windmill_daily_transaction SET is_submitted = p_val WHERE id = p_id;
+END //
+
+DROP PROCEDURE IF EXISTS windmill.get_eb_bill_list //
+CREATE DEFINER=`root`@`localhost` PROCEDURE windmill.get_eb_bill_list(
+    IN p_customer_id INT,
+    IN p_year INT,
+    IN p_month INT
+)
+BEGIN
+    SELECT 
+        e.id, 
+        e.bill_month, 
+        e.bill_year, 
+        mc.customer_name, 
+        cs.service_number,
+        e.pdf_file_path, 
+        e.is_submitted, 
+        e.created_at, 
+        u.name as created_by
+    FROM eb_bill e
+    JOIN masters.master_customers mc ON e.customer_id = mc.id
+    JOIN masters.customer_service cs ON e.sc_id = cs.id
+    LEFT JOIN masters.users u ON e.created_by = u.id
+    WHERE (p_customer_id IS NULL OR e.customer_id = p_customer_id)
+      AND (p_year IS NULL OR e.bill_year = p_year)
+      AND (p_month IS NULL OR e.bill_month = p_month)
+    ORDER BY e.created_at DESC;
 END //
 
 DELIMITER ;

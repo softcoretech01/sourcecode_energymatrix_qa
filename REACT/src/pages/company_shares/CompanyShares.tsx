@@ -92,7 +92,7 @@ export default function CompanyShares() {
                 <div className="p-6 space-y-6">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div className="space-y-1.5">
-                            <label className="text-sm font-semibold text-slate-700">Total No of Shares</label>
+                            <label className="text-sm font-semibold text-slate-700">Total No.of Shares</label>
                             <Input
                                 value={totalShares}
                                 onChange={(e) => setTotalShares(e.target.value)}
@@ -112,7 +112,7 @@ export default function CompanyShares() {
                             />
                         </div>
                         <div className="space-y-1.5">
-                            <label className="text-sm font-semibold text-slate-700">Total No of Customer Shares</label>
+                            <label className="text-sm font-semibold text-slate-700">Total No.of Customer Shares</label>
                             <Input
                                 value={Number(totalShares) ? customerShares : "0"}
                                 readOnly

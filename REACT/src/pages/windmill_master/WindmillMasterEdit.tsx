@@ -377,6 +377,7 @@ export default function WindmillMasterEdit() {
             ae_number: safeString(aeNumber),
             ae_name: safeString(aeName),
             kva_id: kvaId ? parseInt(kvaId, 10) : undefined,
+            transmission_loss: transactionLoss ? parseFloat(transactionLoss) : undefined,
             windmill_capacity: windmillCapacity ? parseFloat(windmillCapacity) : undefined,
             capacity_id: capacityId ? parseInt(capacityId, 10) : undefined,
             edc_circle_id: edcCircle ? parseInt(edcCircle, 10) : undefined,
@@ -390,7 +391,7 @@ export default function WindmillMasterEdit() {
             insurance_person_phone: safeString(insurancePersonPhone),
             insurance_from_date: insuranceFromDate ? format(insuranceFromDate, "yyyy-MM-dd") : undefined,
             insurance_to_date: insuranceToDate ? format(insuranceToDate, "yyyy-MM-dd") : undefined,
-            minimum_level_generation: safeString(minimumLevelGeneration),
+            minimum_level_generation: minimumLevelGeneration ? parseFloat(minimumLevelGeneration) : undefined,
             units_expiring: safeString(unitsExpiring),
             portal_url: safeString(portalUrl),
             username: safeString(portalUsername),
@@ -448,10 +449,8 @@ export default function WindmillMasterEdit() {
                 if (Array.isArray(detail)) {
                     msg = detail
                         .map((d: any) => {
-                            if (d.loc) {
-                                return `${d.loc.join(".")}: ${d.msg}`;
-                            }
-                            return d.msg || JSON.stringify(d);
+                            const field = d.loc ? d.loc[d.loc.length - 1] : "";
+                            return field ? `${field}: ${d.msg}` : d.msg;
                         })
                         .join("\n");
                 } else if (detail && typeof detail === "object") {

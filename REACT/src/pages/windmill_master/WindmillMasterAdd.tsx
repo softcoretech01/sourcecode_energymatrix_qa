@@ -248,7 +248,7 @@ export default function WindmillMasterAdd() {
             insurance_person_phone: safeString(insurancePersonPhone),
             insurance_from_date: insuranceFromDate ? format(insuranceFromDate, "yyyy-MM-dd") : undefined,
             insurance_to_date: insuranceToDate ? format(insuranceToDate, "yyyy-MM-dd") : undefined,
-            minimum_level_generation: safeString(minimumLevelGeneration),
+            minimum_level_generation: minimumLevelGeneration ? parseFloat(minimumLevelGeneration) : undefined,
             units_expiring: safeString(unitsExpiring),
             portal_url: safeString(portalUrl),
             username: safeString(portalUsername),
@@ -320,7 +320,12 @@ export default function WindmillMasterAdd() {
                 let msg = data?.message || "Failed to save windmill";
 
                 if (Array.isArray(detail)) {
-                    msg = detail.map((d: any) => d.msg || JSON.stringify(d)).join("\n");
+                    msg = detail
+                        .map((d: any) => {
+                            const field = d.loc ? d.loc[d.loc.length - 1] : "";
+                            return field ? `${field}: ${d.msg}` : d.msg;
+                        })
+                        .join("\n");
                 } else if (detail && typeof detail === "object") {
                     msg = JSON.stringify(detail, null, 2);
                 } else if (typeof detail === "string") {

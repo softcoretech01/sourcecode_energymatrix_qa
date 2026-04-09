@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/table";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { cn, formatNumber } from "@/lib/utils";
 import api from "@/services/api";
 import { useEffect } from "react";
 
@@ -118,17 +118,11 @@ export default function ShareHoldingsList() {
 
     const fetchTotalCustomerShares = async () => {
         try {
-            const [totalRes, investorRes] = await Promise.all([
-                api.get("/total-shares"),
-                api.get("/investors/list")
-            ]);
-
-            const totalSharesData = totalRes.data?.[0]?.total_company_shares || 0;
-            const investorSharesData = Array.isArray(investorRes.data)
-                ? investorRes.data.reduce((sum: number, inv: any) => sum + Number(inv.share_quantity || 0), 0)
-                : 0;
-
-            setTotalCustomerShares(totalSharesData - investorSharesData);
+            const res = await api.get("/total-shares");
+            const data = Array.isArray(res.data) ? res.data : [res.data];
+            if (data.length > 0) {
+                setTotalCustomerShares(Number(data[0]?.total_customer_shares || 0));
+            }
         } catch (error) {
             console.error("Error fetching total customer shares", error);
         }
@@ -236,14 +230,14 @@ const handleExportExcel = () => {
                                 <h2 className="text-sm font-semibold text-primary pl-2 uppercase tracking-wide">Share Holdings Data</h2>
                                 <div className="flex items-center gap-4 border-l border-primary/20 pl-4 py-0.5">
                                     <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                                        Total: <span className="text-primary font-bold">{totalCustomerShares}</span>
+                                        Total: <span className="text-primary font-bold">{formatNumber(totalCustomerShares)}</span>
                                     </div>
                                     <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                                        Allocated: <span className="text-emerald-600 font-bold">{allocatedShares}</span>
+                                        Allocated: <span className="text-emerald-600 font-bold">{formatNumber(allocatedShares)}</span>
                                     </div>
                                     <div className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
                                         Remaining: <span className={cn("font-bold", remainingShares === 0 ? "text-red-600" : "text-amber-600")}>
-                                            {remainingShares}
+                                            {formatNumber(remainingShares)}
                                         </span>
                                     </div>
                                 </div>
@@ -303,7 +297,7 @@ const handleExportExcel = () => {
                                         filteredData.map((row, index) => (
                                             <TableRow key={index} className="hover:bg-slate-50 bg-white">
                                                 <TableCell className="py-2 text-slate-600 text-sm">{row.customer_name}</TableCell>
-                                                <TableCell className="py-2 text-slate-600 text-sm">{row.share_quantity}</TableCell>
+                                                <TableCell className="py-2 text-slate-600 text-sm">{formatNumber(row.share_quantity)}</TableCell>
                                                 <TableCell className="py-2">
     <Badge
         className={cn(

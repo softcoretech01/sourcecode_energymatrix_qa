@@ -71,11 +71,17 @@ const EBStatementPdf = () => {
                                     name: dbC.name || extData.charges?.[idx]?.name || "Other Charge"
                                 }));
 
+                                // Merge banking_units: prefer DB if non-zero, else use extracted
+                                const mergedBankingUnits = (parseFloat(dbData.banking_units || 0) !== 0)
+                                    ? dbData.banking_units
+                                    : extData.banking_units;
+
                                 setData({
                                     ...extData,
                                     ...dbData,
                                     slots: mergedSlots,
                                     banking_slots: mergedBanking,
+                                    banking_units: mergedBankingUnits,
                                     charges: mergedCharges.length > 0 ? mergedCharges : extData.charges,
                                     company_name: extData.company_name,
                                     windmill_number: extData.windmill_number,
@@ -171,13 +177,13 @@ const EBStatementPdf = () => {
             <div className="mx-auto max-w-5xl space-y-6">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
-                        <Button variant="ghost" onClick={() => navigate("/eb-statement") }>
+                        <Button variant="ghost" onClick={() => navigate("/eb-statement")}>
                             <ArrowLeft className="mr-2 h-4 w-4" /> Back
                         </Button>
                         <h1 className="text-2xl font-bold text-slate-900">EB Statement Data</h1>
                     </div>
-                    <Button 
-                        onClick={handleSave} 
+                    <Button
+                        onClick={handleSave}
                         disabled={saving || saved || !headerId}
                         className={saved ? "bg-green-600 hover:bg-green-700" : "bg-blue-600 hover:bg-blue-700"}
                     >
@@ -252,10 +258,10 @@ const EBStatementPdf = () => {
                                     <TableCell className="text-center font-medium">{data.slots?.C4 || "0"}</TableCell>
                                     <TableCell className="text-center font-medium">{data.slots?.C5 || "0"}</TableCell>
                                     <TableCell className="text-right pr-4 font-bold text-green-700">
-                                        {(parseFloat(data.slots?.C1 || 0) + 
-                                          parseFloat(data.slots?.C2 || 0) + 
-                                          parseFloat(data.slots?.C4 || 0) + 
-                                          parseFloat(data.slots?.C5 || 0)).toLocaleString()}
+                                        {(parseFloat(data.slots?.C1 || 0) +
+                                            parseFloat(data.slots?.C2 || 0) +
+                                            parseFloat(data.slots?.C4 || 0) +
+                                            parseFloat(data.slots?.C5 || 0)).toLocaleString()}
                                     </TableCell>
                                 </TableRow>
                             </TableBody>

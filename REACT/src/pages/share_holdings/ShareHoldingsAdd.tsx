@@ -69,7 +69,7 @@ export default function ShareHoldingsAdd() {
 
     const fetchTotalShares = async () => {
         try {
-            const res = await api.get("/total-shares");
+            const res = await api.get("/total-shares/");
             if (Array.isArray(res.data) && res.data.length > 0) {
                 const first = res.data[0];
                 setTotalShares(String(first.total_company_shares ?? ""));

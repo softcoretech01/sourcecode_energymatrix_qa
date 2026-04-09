@@ -69,15 +69,17 @@ def extract_abstract_rows(pdf):
         text = page.extract_text() or ""
         lines.extend(text.split("\n"))
 
-        if "ABSTRACT FOR OA ADJUSTMENT CHARGES" in text.upper():
-            inside_abstract = True
-
-        # Stop at LT section
-        if inside_abstract and "LT Side Metering" in text:
-            break
-
+        if not inside_abstract:
+            # Flexible detection of the abstract section
+            if any(x in text.upper() for x in ["ABSTRACT FOR OA", "ENERGY ALLOTMENT ORDER", "ADJUSTMENT CHARGES"]):
+                inside_abstract = True
+        
         if not inside_abstract:
             continue
+
+        # Stop at LT section or other common footer sections
+        if "LT SIDE METERING" in text.upper() or "DISTRIBUTION TRANSFORMER" in text.upper():
+            break
 
         # -----------------------
         # 1️⃣ Try table extraction first
@@ -108,9 +110,19 @@ def extract_abstract_rows(pdf):
                         # Search for recognized codes in the cell
                         matched_label = None
                         for code in known_codes:
-                            if code in cell_clean:
+                            # Use word boundary or exact match to avoid partial hits like 'C'
+                            if re.search(rf"\b{code}\b", cell_clean):
                                 matched_label = code
                                 break
+                        
+                        if not matched_label:
+                            # Check for common keywords if code not found
+                            if "WHEEL" in cell_clean: matched_label = "WHLC"
+                            elif "DSM" in cell_clean: matched_label = "C010"
+                            elif "PENAL" in cell_clean: matched_label = "C005"
+                            elif "METER RD" in cell_clean: matched_label = "C001"
+                            elif "O&M" in cell_clean: matched_label = "C002"
+                            elif "TRANS" in cell_clean and "CHG" in cell_clean: matched_label = "C003"
                         
                         if matched_label:
                             # Standardize label
@@ -144,8 +156,8 @@ def extract_abstract_rows(pdf):
                 for t_idx, g_idx in curr_table_col_map.items():
                     if t_idx < len(row) and row[t_idx]:
                         val_str = str(row[t_idx]).replace(",", "").strip()
-                        # Extract first numeric value found in case of merged text
-                        match = re.search(r"^-?\d+(\.\d+)?", val_str)
+                        # Extract first numeric value (integer or decimal)
+                        match = re.search(r"-?\d+(\.\d+)?", val_str)
                         if match:
                             val = match.group(0)
                         else:
@@ -167,13 +179,17 @@ def extract_abstract_rows(pdf):
                 # Look for 10-12 digit service number
                 if re.fullmatch(r"\d{10,12}", parts[0]):
                     windmill = parts[0]
-                    nums = re.findall(r"\d+\.\d+", line)
+                    # Find all numbers (both with and without decimals)
+                    nums = re.findall(r"-?\d+(?:\.\d+)?", line)
+                    # Filter out the windmill number itself (parts[0]) from the potential charges
+                    nums = [n for n in nums if n != windmill]
                     
-                    # Also look in the immediate next line for more numbers (common in some PDF layouts)
+                    # Also look in the immediate next line for more numbers
                     if idx + 1 < len(lines):
                         next_line = lines[idx+1]
-                        if not re.search(r"\d{10,12}", next_line): # Don't bleed into next windmill
-                            nums.extend(re.findall(r"\d+\.\d+", next_line))
+                        if not re.search(r"\d{10,12}", next_line): 
+                            next_nums = re.findall(r"-?\d+(?:\.\d+)?", next_line)
+                            nums.extend(next_nums)
 
                     if nums:
                         windmill_map[windmill] = {i+1: val for i, val in enumerate(nums)}

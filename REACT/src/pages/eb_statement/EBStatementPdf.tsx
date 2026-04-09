@@ -54,11 +54,21 @@ const EBStatementPdf = () => {
                     if (hId) {
                         try {
                             const detailsRes = await api.get(`/eb/details/${hId}`);
-                            if (detailsRes.data.status === "success" && detailsRes.data.data?.charges?.length > 0) {
+                            if (detailsRes.data.status === "success") {
+                                const dbData = detailsRes.data.data || {};
+                                const extData = res.data.data || {};
+                                const mergedCharges = (dbData.charges || []).map((dbC: any, idx: number) => ({
+                                    ...dbC,
+                                    name: dbC.name || extData.charges?.[idx]?.name || "Other Charge"
+                                }));
                                 setData({
-                                    ...detailsRes.data.data,
-                                    company_name: res.data.data?.company_name,
-                                    windmill_number: res.data.data?.windmill_number
+                                    ...extData,
+                                    ...dbData,
+                                    charges: mergedCharges.length > 0 ? mergedCharges : extData.charges,
+                                    company_name: extData.company_name,
+                                    windmill_number: extData.windmill_number,
+                                    month: extData.month || dbData.month,
+                                    year: extData.year || dbData.year
                                 });
                                 setSaved(true);
                             } else if (!storedParsed) {
@@ -197,7 +207,9 @@ const EBStatementPdf = () => {
                                     <span className="flex items-center text-xs font-medium text-slate-500 uppercase tracking-wider">
                                         <Calendar className="mr-2 h-3.5 w-3.5" /> Month / Year
                                     </span>
-                                    <span className="text-sm font-bold text-slate-800">{data.month || "N/A"} / {data.year || "N/A"}</span>
+                                    <span className="text-sm font-bold text-slate-800">
+                                        {(data.month && data.month !== "None") ? data.month : "N/A"} / {(data.year && data.year !== "None") ? data.year : "N/A"}
+                                    </span>
                                 </div>
                             </div>
                         </CardContent>

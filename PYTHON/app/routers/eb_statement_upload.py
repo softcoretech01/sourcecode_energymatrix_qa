@@ -53,9 +53,14 @@ def extract_eb_statement_data(pdf_path, expected_windmill_no, expected_year=None
         if m_wm:
             data["windmill_number"] = m_wm.group(1).strip()
         else:
-            m_alt = re.search(r"(\d{12})", full_text)
+            m_alt = re.search(r"\b(\d{12})\b", full_text)
             if m_alt:
                 data["windmill_number"] = m_alt.group(1)
+            else:
+                # One last try: sequence of 12 digits anywhere
+                m_dig = re.search(r"(\d{10,12})", full_text)
+                if m_dig:
+                    data["windmill_number"] = m_dig.group(1)
 
         # 3. Net Units (Slot-wise) - Target the "Net Units" or "Slot Wise Net Generation" summary line
         # Using a more flexible regex to handle spacing and optional colons
@@ -97,9 +102,23 @@ def extract_eb_statement_data(pdf_path, expected_windmill_no, expected_year=None
                 if not table or len(table) < 2: continue
                 # Look for table with "Charge Code" / "Charge Description" / "Total Charges"
                 header_row = [str(c or "").lower() for c in table[0]]
-                if "charge description" in header_row and "total charges" in header_row:
-                    idx_desc = header_row.index("charge description")
-                    idx_total = header_row.index("total charges")
+                has_desc = "charge description" in header_row or "description" in header_row
+                has_total = "total charges" in header_row or "amount" in header_row or "amount(rs)" in header_row or "amount (rs)" in header_row or "amount (r)" in header_row
+
+                if has_desc and has_total:
+                    idx_desc = header_row.index("charge description") if "charge description" in header_row else header_row.index("description")
+                    if "total charges" in header_row:
+                        idx_total = header_row.index("total charges")
+                    elif "amount" in header_row:
+                        idx_total = header_row.index("amount")
+                    elif "amount(rs)" in header_row:
+                        idx_total = header_row.index("amount(rs)")
+                    elif "amount (rs)" in header_row:
+                        idx_total = header_row.index("amount (rs)")
+                    else:
+                        # Find index that contains "amount"
+                        idx_total = next(i for i, h in enumerate(header_row) if "amount" in h)
+                    
                     idx_code = header_row.index("charge code") if "charge code" in header_row else None
 
                     for row in table[1:]:
@@ -107,14 +126,21 @@ def extract_eb_statement_data(pdf_path, expected_windmill_no, expected_year=None
                             continue
 
                         desc = str(row[idx_desc] or "").strip()
-                        amount = str(row[idx_total] or "").strip().replace(",", "")
+                        raw_amount = str(row[idx_total] or "").strip()
+                        # Remove currency, commas, and other non-numeric chars except .
+                        amount = re.sub(r'[^\d.]', '', raw_amount)
+                        
                         code = None
                         if idx_code is not None and len(row) > idx_code:
                             code = str(row[idx_code] or "").strip()
 
-                        # Only add if it looks like a valid charge (has a name and a numeric amount)
-                        # Supports decimals in amount
-                        if desc and amount.replace(".", "").isdigit():
+                        # If amount is valid but desc is missing, use a fallback
+                        if amount and amount.replace(".", "").isdigit():
+                            if not desc:
+                                # Look in other columns just in case
+                                possible_desc = [str(c or "").strip() for c in row if c and str(c).strip() and not re.search(r'[\d.]', str(c))]
+                                desc = possible_desc[0] if possible_desc else "Miscellaneous Charge"
+
                             charge_item = {
                                 "name": desc,
                                 "amount": amount,
@@ -126,7 +152,7 @@ def extract_eb_statement_data(pdf_path, expected_windmill_no, expected_year=None
 
     # 6. Extract Month/Year from specific "Statement Showing..." line
     m_period = re.search(
-        r"Statement\s+Showing\s+the\s+Energy\s+Generated\s+for\s+([A-Za-z]+)\s*,\s*(\d{4})",
+        r"Statement\s+Showing\s+.*?Energy\s+Generated\s+for\s+([A-Za-z]+)[\s,]+(\d{4})",
         full_text,
         re.IGNORECASE
     )
@@ -137,6 +163,13 @@ def extract_eb_statement_data(pdf_path, expected_windmill_no, expected_year=None
         extracted_year = m_period.group(2).strip()
         data["month"] = normalize_month(extracted_month)
         data["year"] = int(extracted_year)
+    elif not expected_month or not expected_year:
+        # Fallback: Try to extract from filename if present in path
+        fname = os.path.basename(pdf_path)
+        m_file = re.search(r"_([A-Za-z]+)_(\d{4})", fname)
+        if m_file:
+            data["month"] = normalize_month(m_file.group(1))
+            data["year"] = int(m_file.group(2))
 
     # Validation
     if data["windmill_number"] and expected_windmill_no:
@@ -359,7 +392,7 @@ async def read_eb_statement_metadata(filename: str, user: dict = Depends(get_cur
             raise HTTPException(status_code=404, detail=f"File not found: {filename}")
 
         # 4. Parse PDF Data
-        parsed_data = extract_eb_statement_data(file_path, expected_wm_no)
+        parsed_data = extract_eb_statement_data(file_path, expected_wm_no, db_year, db_month)
         
         # Merge DB month/year into parsed_data if missing
         if isinstance(parsed_data, dict):
@@ -682,7 +715,7 @@ async def save_eb_statement_details(
 
             cursor.callproc(
                 "windmill.sp_insert_eb_statement_charge",
-                (payload.eb_header_id, charge_id, charge.amount, user_id)
+                (payload.eb_header_id, charge_id, charge.name, charge.amount, user_id)
             )
 
         # 4. Mark as submitted and update modified time
@@ -774,4 +807,4 @@ async def get_eb_statement_summary_by_month(
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         cursor.close()
-        conn.close()
+        conn.close()

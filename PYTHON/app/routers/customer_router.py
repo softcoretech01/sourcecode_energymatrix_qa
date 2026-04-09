@@ -54,6 +54,7 @@ async def add_customer(data: CustomerCreate, user: dict = Depends(get_current_us
 
     return {"message": "Customer created successfully", "id": new_id}
 
+
 @router.get("")
 async def get_customers(user: dict = Depends(get_current_user)):
 

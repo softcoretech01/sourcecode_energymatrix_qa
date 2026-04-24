@@ -27,7 +27,13 @@ import { utils, writeFile } from "xlsx";
 
 const allotmentData = [];
 
+
+
+
+// Solar Data: 2 Customers, listed by SE Number
 const initialSolarData = [];
+
+
 
 type ChargeRow = {
     windmill: string;
@@ -45,6 +51,8 @@ type SolarRow = {
     value: number;
 };
 
+
+
 const createInitialSolarRows = (labels: Record<string, string>): SolarRow[] => {
     const chargeKeys = ['mrc', 'omc', 'trc', 'oc1', 'kp', 'ec', 'shc', 'other', 'dc'];
     return chargeKeys.map(key => ({
@@ -57,6 +65,8 @@ const createInitialSolarRows = (labels: Record<string, string>): SolarRow[] => {
     }));
 };
 
+
+
 export default function EnergyAllotment() {
     const { open } = useSidebar();
     const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
@@ -64,8 +74,10 @@ export default function EnergyAllotment() {
     const [searchKeyword, setSearchKeyword] = useState("");
     const [isEditing, setIsEditing] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+
     const [activeTab, setActiveTab] = useState("list");
     const [selectedWindmillId, setSelectedWindmillId] = useState<string>("");
+    // Dynamic lists for dropdowns
     const [customerList, setCustomerList] = useState<string[]>([]);
     const [customerSEMap, setCustomerSEMap] = useState<Record<string, string[]>>({});
     const [fullCustomerData, setFullCustomerData] = useState<any[]>([]);
@@ -175,6 +187,10 @@ export default function EnergyAllotment() {
         }));
     };
 
+    // Removed fetchAllotmentOrders effect as requested by the user so the File Name column is initially empty
+
+    // State for Charge Allocation (8 windmills)
+
     // State for Dynamic Windmill Headers
     const [windmillNumbers, setWindmillNumbers] = useState<string[]>(["WM-001", "WM-002", "WM-003", "WM-004", "WM-005", "WM-006", "WM-007", "WM-008", "SOLAR-001"]);
     const [windmillsDetailed, setWindmillsDetailed] = useState<any[]>([]);
@@ -283,6 +299,7 @@ export default function EnergyAllotment() {
             );
         });
 
+        // 2. Group by Customer and SE
         const grouped: Record<string, Set<string>> = {};
         filtered.forEach(item => {
             const cust = String(item.customer || '').trim();

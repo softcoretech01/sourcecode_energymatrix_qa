@@ -13,16 +13,7 @@ import { ArrowLeft, UserPlus, FileText, Phone, Upload, Eye, LayoutGrid, AlertTri
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -31,7 +22,7 @@ export default function CustomerAdd() {
     const [createdCustomerId, setCreatedCustomerId] = useState<string | null>(null);
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState("customer");
-    const [showPostConfirm, setShowPostConfirm] = useState(false);
+
     const [isSaving, setIsSaving] = useState(false);
 
     // basic customer info
@@ -535,7 +526,7 @@ export default function CustomerAdd() {
                         <Button
                             size="sm"
                             className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 px-4 rounded-md transition-all shadow-sm"
-                            onClick={() => setShowPostConfirm(true)}
+                            onClick={handlePost}
                             disabled={isSaving}
                         >
                             Post
@@ -1054,25 +1045,7 @@ export default function CustomerAdd() {
                 </DialogContent>
             </Dialog>
 
-            <AlertDialog open={showPostConfirm} onOpenChange={setShowPostConfirm}>
-                <AlertDialogContent className="max-w-[400px]">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Post Record?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Once posted, the customer record will become immutable. You will not be able to make further edits.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                            onClick={handlePost}
-                            className="bg-slate-900 hover:bg-slate-800 text-white"
-                        >
-                            Post
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+
 
         </div >
     );

@@ -24,6 +24,8 @@ type SolarStatementData = {
     windmill_number?: string;
     slots?: SolarSlots;
     charges?: SolarCharge[];
+    month?: string | number;
+    year?: string | number;
 };
 
 export default function EBStatementSolarPdf() {
@@ -31,6 +33,7 @@ export default function EBStatementSolarPdf() {
     const [params] = useSearchParams();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [comparing, setComparing] = useState(false);
     const [saved, setSaved] = useState(false);
     const [solarId, setSolarId] = useState<string>("");
     const [solarHeaderId, setSolarHeaderId] = useState<number | null>(null);
@@ -80,6 +83,9 @@ export default function EBStatementSolarPdf() {
                     if (json.header_id) {
                         setSolarHeaderId(Number(json.header_id));
                         sessionStorage.setItem("ebStatementSolarHeaderId", String(json.header_id));
+                    }
+                    if (json.is_submitted) {
+                        setSaved(true);
                     }
                     if (json.parsed) {
                         setData(json.parsed);
@@ -230,8 +236,35 @@ export default function EBStatementSolarPdf() {
                     </div>
                     <div className="space-x-2">
                         <Button
+                            onClick={async () => {
+                                try {
+                                    if (!data) return;
+                                    setComparing(true);
+                                    
+                                    // Use eb_header_id to let backend resolve everything
+                                    await api.post("/charges-solar/calculate", {
+                                        eb_header_id: Number(solarHeaderId)
+                                    });
+                                    navigate(`/eb-statement-solar/comparison?id=${solarHeaderId}`);
+                                } catch (err: any) {
+                                    console.error("Solar calculation failed:", err);
+                                    const errMsg = err.response?.data?.detail || err.message;
+                                    toast.error(typeof errMsg === 'string' ? errMsg : "Calculation failed - check solar capacity");
+                                    // Don't navigate if it failed
+                                } finally {
+                                    setComparing(false);
+                                }
+                            }}
+                            variant="outline"
+                            disabled={!saved || comparing || saving}
+                            className="border-blue-600 text-blue-600 hover:bg-blue-50 disabled:opacity-50"
+                        >
+                            {comparing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            Comparison
+                        </Button>
+                        <Button
                             onClick={handleSave}
-                            disabled={saving || saved || loading}
+                            disabled={saving || comparing || saved || loading}
                             className={saved ? "bg-green-600 hover:bg-green-700" : "bg-blue-600 hover:bg-blue-700"}
                         >
                             {saving ? "Saving..." : saved ? "Saved" : "Save Statement"}

@@ -155,26 +155,26 @@ export function AppSidebar() {
                     url: "/consumption-request",
                     icon: ClipboardList,
                 },
-                //{
-                //    title: "Energy Allotment",
-                //    url: "/energy-allotment",
-                //    icon: Zap,
-                //},
+                {
+                    title: "Energy Allotment",
+                    url: "/energy-allotment",
+                    icon: Zap,
+                },
                 {
                     title: "Client EB Bill",
                     url: "/windmill/eb-bill",
                     icon: CreditCard,
                 },
-                //{
-                //    title: "Actual Allotment",
-                //    url: "/windmill/actuals",
-                //    icon: CreditCard,
-                //},
-                //{
-                //    title: "Client Invoice",
-                //    url: "/windmill/client-invoice",
-                //    icon: ReceiptText,
-                //},
+                {
+                    title: "Actual Allotment",
+                    url: "/windmill/actuals",
+                    icon: CreditCard,
+                },
+                {
+                    title: "Client Invoice",
+                    url: "/windmill/client-invoice",
+                    icon: ReceiptText,
+                },
 
 
 
@@ -342,7 +342,7 @@ export function AppSidebar() {
                         </SidebarMenuItem>
                     </SidebarMenu>
                     <div className="px-4 py-2 text-xs text-sidebar-foreground/70 text-center group-data-[collapsible=icon]:hidden">
-                        version 1.1.6
+                        version 1.1.7
                     </div>
                 </SidebarGroup>
             </SidebarContent>

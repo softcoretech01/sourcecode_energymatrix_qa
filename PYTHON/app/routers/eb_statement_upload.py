@@ -1,5 +1,5 @@
 from app.utils.auth_utils import get_current_user
-from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException, Query
 from typing import Optional, Any
 import os
 import shutil
@@ -8,6 +8,7 @@ from app.schemas.eb_statement_schema import EBStatementUploadResponse, EBStateme
 from app.utils.validation import validate_windmill
 from app.database import get_connection, DB_NAME_WINDMILL
 import pdfplumber
+import pymysql
 import re
 
 router = APIRouter(prefix="/eb", tags=["EB Statements"])
@@ -283,7 +284,7 @@ async def upload_eb_statement(
         try:
             cursor.callproc(
                 "windmill.sp_create_eb_statement_header",
-                (windmill_id, month, year, file_path, 1)
+                (windmill_id, month_name, year, file_path, 1)
             )
             conn.commit()
             result = cursor.fetchone()
@@ -754,57 +755,158 @@ async def get_eb_statement_summary_by_month(
         "5": "May", "6": "June", "7": "July", "8": "August",
         "9": "September", "10": "October", "11": "November", "12": "December"
     }
+    try:
+        month_int = int(month)
+    except:
+        reverse_month_names = {v: k for k, v in month_names.items()}
+        month_int = int(reverse_month_names.get(month, 0))
+
     db_month = month_names.get(str(month), month)
-    print(f"[EB Summary] Fetching for year={year}, month={db_month}")
+
+    # Current month details
+    current_month_name = db_month
+    current_month_num_str = str(month)
+    current_month_num_str_pad = current_month_num_str.zfill(2)
+    current_year = year
+
+    # Previous month details
+    prev_month_int = month_int - 1
+    prev_year = year
+    if prev_month_int == 0:
+        prev_month_int = 12
+        prev_year -= 1
+    prev_month_name = month_names.get(str(prev_month_int))
+    prev_month_num_str = str(prev_month_int)
+    prev_month_num_str_pad = prev_month_num_str.zfill(2)
 
     conn = get_connection(db_name=DB_NAME_WINDMILL)
     cursor = conn.cursor()
     try:
+        # Fetch P/B values directly from EB Statements (Windmill and Solar).
+        # The user requested that for a given month (e.g., March), values MUST come from 
+        # the previous month's actual generation (e.g., February). 
+        # If previous month data is missing, it should be 0.
         query = """
             SELECT 
-                mw.windmill_number,
+                TRIM(mw.windmill_number) as windmill_number,
                 d.slots AS slot,
                 d.net_unit AS pp_units,
-                d.banking_units AS bank_units
+                d.banking_units AS bank_units,
+                es.year,
+                es.month,
+                mw.id as windmill_id
             FROM windmill.eb_statements es
             JOIN masters.master_windmill mw ON es.windmill_id = mw.id
             JOIN windmill.eb_statements_details d ON es.id = d.eb_header_id
-            WHERE es.year = %s AND es.month = %s
+            WHERE (es.year = %s AND (es.month = %s OR es.month = %s OR es.month = %s))
+            
+            UNION ALL
+            
+            SELECT 
+                TRIM(mw.windmill_number) as windmill_number,
+                d.slots AS slot,
+                0 AS pp_units,
+                d.net_unit AS bank_units,
+                es.year,
+                es.month,
+                mw.id as windmill_id
+            FROM solar.eb_statement_solar es
+            JOIN masters.master_windmill mw ON es.solar_id = mw.id
+            JOIN solar.eb_statement_solar_details d ON es.id = d.eb_header_id
+            WHERE (es.year = %s AND (es.month = %s OR es.month = %s OR es.month = %s))
         """
-        cursor.execute(query, (year, db_month))
+        params = (
+            # Windmill params (Strictly previous month)
+            prev_year, prev_month_name, prev_month_num_str, prev_month_num_str_pad,
+            # Solar params (Strictly previous month)
+            prev_year, prev_month_name, prev_month_num_str, prev_month_num_str_pad
+        )
+        cursor.execute(query, params)
         rows = cursor.fetchall()
-        print(f"[EB Summary] Found {len(rows)} detail rows")
 
-        # Slot number to column key: 1->c1, 2->c2, 4->c4, 5->c5 (3 is skipped)
-        slot_to_col = {1: "c1", 2: "c2", 4: "c4", 5: "c5"}
-
-        # Build result map: windmill_number -> {c1_pp, c1_bank, c2_pp, ...}
         result_map = {}
         for row in rows:
-            wm = str(row[0])          # windmill_number
-            slot = int(row[1])        # slot number (1,2,3,4,5)
+            wm = str(row[0])
+            slot_raw = str(row[1]).lower()
+            slot = slot_raw if slot_raw.startswith('c') else f"c{slot_raw}"
             pp_units = float(row[2]) if row[2] else 0.0
             bank_units = float(row[3]) if row[3] else 0.0
-
+            
             if wm not in result_map:
-                result_map[wm] = {}
+                result_map[wm] = {"windmill_id": row[6]}
+            
+            # Since we only fetch previous month now, we can just aggregate or pick the first found.
+            # Usually there's only one EB statement per windmill per month.
+            result_map[wm][f"{slot}_pp"] = result_map[wm].get(f"{slot}_pp", 0) + pp_units
+            result_map[wm][f"{slot}_bank"] = result_map[wm].get(f"{slot}_bank", 0) + bank_units
 
-            col = slot_to_col.get(slot)
-            if col:
-                result_map[wm][f"{col}_pp"] = pp_units
-                result_map[wm][f"{col}_bank"] = bank_units
+        return {"status": "success", "data": result_map}
 
-        print(f"[EB Summary] Result: {result_map}")
 
-        return {
-            "status": "success",
-            "data": result_map
-        }
     except Exception as e:
         import traceback
         traceback.print_exc()
         print(f"[EB Summary] Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
     finally:
-        cursor.close()
+        if cursor: cursor.close()
+        if conn: conn.close()
+
+@router.post("/save-details")
+
+
+@router.get("/applicable-charges/summary")
+async def get_applicable_charges_summary(
+    year: int,
+    month: str,
+    user: dict = Depends(get_current_user)
+):
+    conn = get_connection(db_name=DB_NAME_WINDMILL)
+    cursor = conn.cursor(pymysql.cursors.DictCursor)
+    
+    try:
+        month_names = {
+            "1": "January", "2": "February", "3": "March", "4": "April",
+            "5": "May", "6": "June", "7": "July", "8": "August",
+            "9": "September", "10": "October", "11": "November", "12": "December"
+        }
+        db_month = month_names.get(str(month), month)
+
+        query = """
+            SELECT 
+                TRIM(mw.windmill_number) as windmill_number,
+                mcc.charge_code,
+                ac.total_charge
+            FROM windmill.eb_statements s
+            JOIN windmill.eb_statements_applicable_charges ac ON s.id = ac.eb_header_id
+            JOIN masters.master_consumption_chargers mcc ON ac.charge_id = mcc.id
+            JOIN masters.master_windmill mw ON s.windmill_id = mw.id
+            WHERE s.month = %s AND s.year = %s
+        """
+        cursor.execute(query, (db_month, year))
+        rows = cursor.fetchall()
+        
+        result_map = {}
+        for row in rows:
+            wm = str(row['windmill_number'])
+            code = str(row['charge_code'])
+            val = float(row['total_charge']) if row['total_charge'] else 0.0
+            
+            if wm not in result_map:
+                result_map[wm] = {}
+            result_map[wm][code] = val
+            
+        return {"status": "success", "data": result_map}
+    finally:
         conn.close()
+
+
+@router.post("/save-all")
+async def save_all_eb_statement(
+    payload: EBStatementSaveRequest,
+    user: dict = Depends(get_current_user)
+):
+    """
+    Alias for /save-details. Called by the frontend after auto-upload.
+    """
+    return await save_eb_statement_details(payload, user)

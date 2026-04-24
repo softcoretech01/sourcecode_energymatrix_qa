@@ -98,7 +98,6 @@ export default function EBStatementAdd() {
         e.preventDefault();
     };
 
-    // ✅ Upload + open viewer
     const handleUploadAndRead = async () => {
         if (!selectedFile) {
             toast.error("Upload PDF first");
@@ -151,12 +150,12 @@ export default function EBStatementAdd() {
         } catch (err: any) {
             console.error(err);
             const message = err.response?.data?.detail || err.response?.data?.message || "Upload failed";
-            
+
             // Check if conflict (duplicate upload) error
             if (err.response?.status === 409) {
                 setDuplicateMessage(message);
                 setShowDuplicateDialog(true);
-            } 
+            }
             // Check for mismatch error (wrong month/year)
             else if (err.response?.status === 400 && message.toLowerCase().includes("selected a wrong")) {
                 setMismatchMessage(message);

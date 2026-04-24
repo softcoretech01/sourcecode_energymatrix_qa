@@ -21,10 +21,12 @@ import ActualsList from "./pages/windmill/actuals/ActualsList";
 import ActualsAdd from "./pages/windmill/actuals/ActualsAdd";
 import ActualsEdit from "./pages/windmill/actuals/ActualsEdit";
 import ActualsPdf from "./pages/windmill/actuals/ActualsPdf";
+import ActualsReconcile from "./pages/windmill/actuals/ActualsReconcile";
 
 import ClientInvoiceList from "./pages/windmill/client_invoice/ClientInvoiceList";
 import ClientInvoiceAdd from "./pages/windmill/client_invoice/ClientInvoiceAdd";
 import ClientInvoiceEdit from "./pages/windmill/client_invoice/ClientInvoiceEdit";
+import ClientInvoicePdf from "./pages/windmill/client_invoice/ClientInvoicePdf";
 
 import EBStatementList from "./pages/eb_statement/EBStatementList";
 import EBStatementAdd from "./pages/eb_statement/EBStatementAdd";
@@ -80,6 +82,8 @@ import InvestorsEdit from "./pages/investors_master/investors_edit";
 
 import EBStatementPdf from "./pages/eb_statement/EBStatementPdf";
 import CompanyShares from "./pages/company_shares/CompanyShares";
+import EBChargeComparison from "./pages/eb_statement/EBChargeComparison";
+import EBSolarChargeComparison from "./pages/eb_statement_solar/EBSolarChargeComparison";
 
 
 
@@ -142,16 +146,18 @@ const App = () => (
               <Route path="/windmill/eb-bill/edit/:id" element={<EBBillEdit />} />
               <Route path="/windmill/eb-bill/pdf" element={<EBBillPdf />} />
 
+              <Route path="/windmill/client-invoice" element={<ClientInvoiceList />} />
+              <Route path="/windmill/client-invoice/add" element={<ClientInvoiceAdd />} />
+              <Route path="/windmill/client-invoice/edit/:invoice_id" element={<ClientInvoiceEdit />} />
+              <Route path="/windmill/client-invoice/pdf/:invoice_id" element={<ClientInvoicePdf />} />
 
               <Route path="/windmill/actuals" element={<ActualsList />} />
               <Route path="/windmill/actuals/add" element={<ActualsAdd />} />
               <Route path="/windmill/actuals/edit/:id" element={<ActualsEdit />} />
               <Route path="/windmill/actuals/pdf/:client_eb_id" element={<ActualsPdf />} />
+              <Route path="/windmill/actuals/reconcile/:id" element={<ActualsReconcile />} />
 
 
-              <Route path="/windmill/client-invoice" element={<ClientInvoiceList />} />
-              <Route path="/windmill/client-invoice/add" element={<ClientInvoiceAdd />} />
-              <Route path="/windmill/client-invoice/edit/:id" element={<ClientInvoiceEdit />} />
               <Route path="/eb-statement" element={<EBStatementList />} />
               <Route path="/eb-statement/add" element={<EBStatementAdd />} />
               <Route path="/eb-statement/edit/:id" element={<EBStatementEdit />} />
@@ -159,6 +165,7 @@ const App = () => (
               <Route path="/eb-statement-solar/add" element={<EBStatementSolarAdd />} />
               <Route path="/eb-statement-solar/edit/:id" element={<EBStatementSolarEdit />} />
               <Route path="/eb-statement-solar/pdf" element={<EBStatementSolarPdf />} />
+              <Route path="/eb-statement-solar/comparison" element={<EBSolarChargeComparison />} />
               <Route path="/bank-report" element={<BankReport />} />
               <Route path="/consumption-bank-report" element={<Navigate to="/forecast-report" replace />} />
               <Route path="/forecast-report" element={<ForecastReport />} />
@@ -204,6 +211,7 @@ const App = () => (
               <Route path="/master/investors/edit/:id" element={<InvestorsEdit />} />
               <Route path="/master/company-shares" element={<CompanyShares />} />
               <Route path="/eb-statement/pdf" element={<EBStatementPdf />} />
+              <Route path="/eb-statement/comparison" element={<EBChargeComparison />} />
 
             </Route>
             <Route path="/login" element={<Login />} />

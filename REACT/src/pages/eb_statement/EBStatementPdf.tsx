@@ -14,6 +14,7 @@ const EBStatementPdf = () => {
     const [data, setData] = useState<any>(null);
     const [headerId, setHeaderId] = useState<number | null>(null);
     const [saving, setSaving] = useState(false);
+    const [comparing, setComparing] = useState(false);
     const [saved, setSaved] = useState(false);
 
     useEffect(() => {
@@ -182,22 +183,50 @@ const EBStatementPdf = () => {
                         </Button>
                         <h1 className="text-2xl font-bold text-slate-900">EB Statement Data</h1>
                     </div>
-                    <Button
-                        onClick={handleSave}
-                        disabled={saving || saved || !headerId}
-                        className={saved ? "bg-green-600 hover:bg-green-700" : "bg-blue-600 hover:bg-blue-700"}
-                    >
-                        {saving ? (
-                            <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Saving...
-                            </>
-                        ) : saved ? (
-                            "Saved"
-                        ) : (
-                            "Save Statement"
-                        )}
-                    </Button>
+                    <div className="flex space-x-2">
+                        <Button
+                            onClick={async () => {
+                                try {
+                                    setComparing(true);
+                                    
+                                    // Use eb_header_id to let backend resolve everything
+                                    await api.post("/charges/calculate", {
+                                        eb_header_id: Number(headerId)
+                                    });
+                                    navigate(`/eb-statement/comparison?id=${headerId}`);
+                                } catch (err: any) {
+                                    console.error("Calculation failed:", err);
+                                    const errMsg = err.response?.data?.detail;
+                                    toast.error(typeof errMsg === 'string' ? errMsg : "Calculation failed - check windmill capacity");
+                                    navigate(`/eb-statement/comparison?id=${headerId}`);
+                                } finally {
+                                    setComparing(false);
+                                }
+                            }}
+                            variant="outline"
+                            disabled={!saved || comparing || saving}
+                            className="border-blue-600 text-blue-600 hover:bg-blue-50 disabled:opacity-50"
+                        >
+                            {comparing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                            Comparison
+                        </Button>
+                        <Button
+                            onClick={handleSave}
+                            disabled={saving || comparing || saved || !headerId}
+                            className={saved ? "bg-green-600 hover:bg-green-700" : "bg-blue-600 hover:bg-blue-700"}
+                        >
+                            {saving ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Saving...
+                                </>
+                            ) : saved ? (
+                                "Saved"
+                            ) : (
+                                "Save Statement"
+                            )}
+                        </Button>
+                    </div>
                 </div>
 
                 <div className="grid gap-6 md:grid-cols-1">

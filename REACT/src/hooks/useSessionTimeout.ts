@@ -83,24 +83,5 @@ export const useSessionTimeout = () => {
     };
   }, [resetSessionTimer]);
 
-  // Handle browser close
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      // Clear tokens when tab/window closes
-      const token = localStorage.getItem("access_token");
-      if (token) {
-        localStorage.removeItem("access_token");
-        // Try to call logout endpoint (won't wait for response)
-        navigator.sendBeacon(
-          `${import.meta.env.VITE_BACKEND_URL}/api/auth/logout`,
-          JSON.stringify({ token })
-        );
-      }
-    };
 
-    window.addEventListener("beforeunload", handleBeforeUnload);
-    return () => {
-      window.removeEventListener("beforeunload", handleBeforeUnload);
-    };
-  }, []);
 };

@@ -23,9 +23,12 @@ from app.routers.investors_routes import router as investors_routes
 from app.routers.capacity_routes import router as capacity_routes
 from app.routers.consumption_routes import router as consumption_routes
 from app.routers.transmission_routes import router as transmission_routes
-from app.routers.actual_allotment import router as actual_allotment_router
+from app.routers.actual_allotment_v5 import router as actual_allotment_router
 from app.routers.consumption_request import router as consumption_req_router
-
+from app.routers.charge_values_router import router as charge_values_router
+from app.routers.charge_values_solar_router import router as charge_values_solar_router
+from app.routers.client_invoice_router import router as client_invoice_router
+from app.routers.energy_allotment_router import router as energy_allotment_router
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     print("Running database initialization on startup...")
@@ -77,3 +80,7 @@ app.include_router(consumption_routes, prefix="/api", dependencies=auth_dep)
 app.include_router(consumption_req_router, prefix="/api") # We'll handle Depends(get_current_user) inside the routes to get the user object
 app.include_router(transmission_routes, prefix="/api", dependencies=auth_dep)
 app.include_router(actual_allotment_router, prefix="/api", dependencies=auth_dep)
+app.include_router(charge_values_router, prefix="/api", dependencies=auth_dep)
+app.include_router(charge_values_solar_router, prefix="/api", dependencies=auth_dep)
+app.include_router(client_invoice_router, prefix="/api", dependencies=auth_dep)
+app.include_router(energy_allotment_router, prefix="/api", dependencies=auth_dep)

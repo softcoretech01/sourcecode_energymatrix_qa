@@ -244,3 +244,150 @@ class CustomerConsumptionRequest(Base):
     modified_by = Column(Integer)
     modified_at = Column(DateTime)
     is_submitted = Column(SmallInteger, default=0)
+
+
+# =====================================================
+# 🔵 ACTUAL ALLOTMENT TABLE (actual_allotment)
+# =====================================================
+class ActualAllotment(Base):
+    __tablename__ = "actual_allotment"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    windmill_id = Column(BigInteger, nullable=False)
+    service_id = Column(Integer, nullable=False)
+    allotment_total = Column(DECIMAL(15, 2), default=0.00)
+    year = Column(Integer, nullable=False)
+    month = Column(Integer, nullable=False)
+    pdf_file_path = Column(String(500))
+    
+    # Audit fields
+    created_by = Column(Integer)
+    created_at = Column(DateTime, default=func.now())
+    modified_by = Column(Integer)
+    modified_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    @staticmethod
+    def save_allotment(cursor, windmill_id, service_id, allotment_total, year, month, pdf_path, user_id):
+        cursor.callproc(
+            "windmill.sp_save_actual_allotment",
+            (windmill_id, service_id, allotment_total, year, month, pdf_path, user_id)
+        )
+
+    @staticmethod
+    def get_allotment_list(cursor, windmill_id=None, year=None, month=None):
+        cursor.callproc(
+            "windmill.sp_get_actual_allotment_list",
+            (windmill_id, year, month)
+        )
+        return cursor.fetchall()
+
+# =====================================================
+# 🔵 CLIENT INVOICE TABLE (client_invoice)
+# =====================================================
+class ClientInvoice(Base):
+    __tablename__ = "client_invoice"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    invoice_number = Column(Integer, nullable=False)   # Sequential: 1, 2, 3, ...
+    customer_id = Column(Integer, nullable=False)
+    service_id = Column(Integer, nullable=False)
+    year = Column(Integer, nullable=False)
+    month = Column(String(20), nullable=False)
+    invoice_date = Column(Date, nullable=False)         # Date when generated/printed
+    amount = Column(DECIMAL(15, 2), default=0.00)
+
+    # Audit fields
+    created_by = Column(Integer)
+    created_at = Column(DateTime, default=func.now())
+    modified_by = Column(Integer)
+    modified_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    is_submitted = Column(SmallInteger, default=0)
+
+# =====================================================
+# 🔵 CLIENT INVOICE DETAILS TABLE (client_invoice_details)
+# =====================================================
+class ClientInvoiceDetails(Base):
+    __tablename__ = "client_invoice_details"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    invoice_id = Column(Integer, ForeignKey("client_invoice.id"), nullable=False)
+    field_name = Column(String(100), nullable=False)
+    amount = Column(DECIMAL(15, 2), default=0.00)
+
+    # Relationships
+    invoice = relationship("ClientInvoice", backref="invoice_details")
+# =====================================================
+# 🔵 CHARGE ALLOTMENT HEADER TABLE (charge_allotment_header)
+# =====================================================
+class ChargeAllotmentHeader(Base):
+    __tablename__ = "charge_allotment_header"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    customer_id = Column(Integer, nullable=False, index=True)
+    windmill_id = Column(BigInteger, nullable=False, index=True)
+    service_id = Column(Integer, nullable=False, index=True)
+    year = Column(Integer, nullable=False, index=True)
+    month = Column(Integer, nullable=False, index=True)
+    
+    # Audit Fields
+    created_at = Column(DateTime, default=func.now())
+    created_by = Column(Integer)
+    modified_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    modified_by = Column(Integer)
+    status = Column(Enum('0', '1'), default='1')
+    is_submitted = Column(SmallInteger, default=0)
+
+# =====================================================
+# 🔵 CHARGE ALLOTMENT DETAILS TABLE (charge_allotment_details)
+# =====================================================
+class ChargeAllotmentDetails(Base):
+    __tablename__ = "charge_allotment_details"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    header_id = Column(Integer, ForeignKey("charge_allotment_header.id"), nullable=False)
+    charge_id = Column(Integer, nullable=False)          # FK to masters.master_consumption_chargers.id
+    charge_amount = Column(DECIMAL(15, 2), default=0.00)
+    
+    # Audit Fields
+    created_at = Column(DateTime, default=func.now())
+    created_by = Column(Integer)
+    modified_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    modified_by = Column(Integer)
+
+# =====================================================
+# 🔵 SOLAR CHARGE ALLOTMENT HEADER TABLE (solar_charge_allotment_header)
+# =====================================================
+class SolarChargeAllotmentHeader(Base):
+    __tablename__ = "solar_charge_allotment_header"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    customer_id = Column(Integer, nullable=False, index=True)
+    solar_id = Column(BigInteger, nullable=False, index=True)
+    service_id = Column(Integer, nullable=False, index=True)
+    year = Column(Integer, nullable=False, index=True)
+    month = Column(Integer, nullable=False, index=True)
+    
+    # Audit Fields
+    created_at = Column(DateTime, default=func.now())
+    created_by = Column(Integer)
+    modified_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    modified_by = Column(Integer)
+    status = Column(Enum('0', '1'), default='1')
+    is_submitted = Column(SmallInteger, default=0)
+
+# =====================================================
+# 🔵 SOLAR CHARGE ALLOTMENT DETAILS TABLE (solar_charge_allotment_details)
+# =====================================================
+class SolarChargeAllotmentDetails(Base):
+    __tablename__ = "solar_charge_allotment_details"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    header_id = Column(Integer, ForeignKey("solar_charge_allotment_header.id"), nullable=False)
+    charge_id = Column(Integer, nullable=False)          # FK to masters.master_consumption_chargers.id
+    charge_amount = Column(DECIMAL(15, 2), default=0.00)
+    
+    # Audit Fields
+    created_at = Column(DateTime, default=func.now())
+    created_by = Column(Integer)
+    modified_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    modified_by = Column(Integer)

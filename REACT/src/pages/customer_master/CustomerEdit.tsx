@@ -13,16 +13,7 @@ import { ArrowLeft, UserPlus, FileText, Phone, Upload, Eye, LayoutGrid, AlertTri
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import {
-    AlertDialog,
-    AlertDialogAction,
-    AlertDialogCancel,
-    AlertDialogContent,
-    AlertDialogDescription,
-    AlertDialogFooter,
-    AlertDialogHeader,
-    AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -35,7 +26,7 @@ export default function CustomerEdit(): JSX.Element {
     const { pathname } = useLocation();
     const isViewOnly = pathname.includes("/view/");
     const isReadOnly = isViewOnly;
-    const [showPostConfirm, setShowPostConfirm] = useState(false);
+
     const [isSaving, setIsSaving] = useState(false);
 
     const tabOrder = [
@@ -671,9 +662,7 @@ export default function CustomerEdit(): JSX.Element {
                                         "bg-emerald-600 hover:bg-emerald-700 text-white h-8 px-4 rounded-md transition-all shadow-sm"
                                     )}
                                     disabled={isReadOnly}
-                                    onClick={() => {
-                                        setShowPostConfirm(true);
-                                    }}
+                                    onClick={handlePost}
                                 >
                                     Post
                                 </Button>
@@ -963,7 +952,7 @@ export default function CustomerEdit(): JSX.Element {
                                                             </td>
                                                             <td className="px-4 py-3 text-slate-600 border-r border-slate-100">
                                                                 {/* @ts-ignore - kva from join or lookup */}
-                                                                {item.kva || kvaList.find(k => String(k.id) === String(item.kva_id || item.kva))?.kva || item.kva_id || item.kva}
+                                                                {kvaList.find(k => String(k.id) === String(item.kva_id || item.kva))?.kva || kvaList.find(k => String(k.id) === String(item.kva_id || item.kva))?.capacity || item.kva_id || item.kva}
                                                             </td>
                                                             <td className="px-4 py-3 text-slate-600 border-r border-slate-100">
                                                                 {edcList.find(e =>
@@ -1280,25 +1269,7 @@ export default function CustomerEdit(): JSX.Element {
                 </DialogContent>
             </Dialog>
 
-            <AlertDialog open={showPostConfirm} onOpenChange={setShowPostConfirm}>
-                <AlertDialogContent className="max-w-[400px]">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Post Record?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            Once posted, the customer record will become immutable. You will not be able to make further edits.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction 
-                            onClick={handlePost}
-                            className="bg-slate-900 hover:bg-slate-800 text-white"
-                        >
-                            Post
-                        </AlertDialogAction>
-                    </AlertDialogFooter>
-                </AlertDialogContent>
-            </AlertDialog>
+
 
         </div >
     );

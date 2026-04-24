@@ -1,6 +1,5 @@
 
-import { Search, Edit, Upload, FileText, Scale } from "lucide-react";
-import { format } from "date-fns";
+import { Search, FileText, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -18,42 +17,60 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table";
-import { cn, formatDate } from "@/lib/utils";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useNavigate } from "react-router-dom";
-import { Badge } from "@/components/ui/badge";
 import React, { useState, useEffect } from "react";
-
+import { toast } from "sonner";
 import api from "@/services/api";
 
 // ✅ TYPE (based on backend)
 type Actuals = {
-    client_eb_id: any;
-    actual_month: number;
-    actual_year: number;
+    id: number;
+    client_eb_id?: number;
+    year: number;
+    month: number;
+    pdf_file_path: string;
+    service_number: string;
     customer_name: string;
-    sc_number: string;
+    value: number;
+    system_wheeling_charge: number;
+    manual_adjusted_total: number | null;
+    reconciliation_status: string;
+    source: 'Manual' | 'System' | 'System-Final-Verified';
 };
 export default function ActualsList() {
     const navigate = useNavigate();
     const [selectedYear, setSelectedYear] = useState<string>(new Date().getFullYear().toString());
     const [selectedMonth, setSelectedMonth] = useState<string>((new Date().getMonth() + 1).toString());
-    
+
     const [searchKeyword, setSearchKeyword] = useState("");
 
     const [appliedYear, setAppliedYear] = useState<string>(new Date().getFullYear().toString());
     const [appliedMonth, setAppliedMonth] = useState<string>((new Date().getMonth() + 1).toString());
     const [appliedWm, setAppliedWm] = useState("");
-     const [data, setData] = useState<Actuals[]>([]);
+    const [data, setData] = useState<Actuals[]>([]);
     const [loading, setLoading] = useState(false);
     const [selectedCustomer, setSelectedCustomer] = useState("");
-const [selectedSc, setSelectedSc] = useState("");
-const [appliedCustomer, setAppliedCustomer] = useState("");
-const [appliedSc, setAppliedSc] = useState("");
-const currentYear = new Date().getFullYear();
-const years: number[] = Array.from({ length: 5 }, (_, i) => currentYear - i);
-const [customers, setCustomers] = useState<string[]>([]);
-const [scNumbers, setScNumbers] = useState<string[]>([]);
-const [isFilterApplied, setIsFilterApplied] = useState(false);
+    const [recordToDelete, setRecordToDelete] = useState<number | null>(null);
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+    const [deleting, setDeleting] = useState(false);
+    const [selectedSc, setSelectedSc] = useState("");
+    const [appliedCustomer, setAppliedCustomer] = useState("");
+    const [appliedSc, setAppliedSc] = useState("");
+    const currentYear = new Date().getFullYear();
+    const years: number[] = Array.from({ length: 5 }, (_, i) => currentYear - i);
+    const [customers, setCustomers] = useState<string[]>([]);
+    const [scNumbers, setScNumbers] = useState<string[]>([]);
+    const [isFilterApplied, setIsFilterApplied] = useState(false);
 
 
 
@@ -65,111 +82,129 @@ const [isFilterApplied, setIsFilterApplied] = useState(false);
 
 
     useEffect(() => {
-    setSelectedSc(""); // reset SC when customer changes
+        setSelectedSc(""); // reset SC when customer changes
 
-    if (selectedCustomer) {
-        const filtered = data.filter(
-            (item) => item.customer_name === selectedCustomer
-        );
+        if (selectedCustomer) {
+            const filtered = data.filter(
+                (item) => item.customer_name === selectedCustomer
+            );
 
-        const uniqueSc = [...new Set(filtered.map((item) => item.sc_number))];
-        setScNumbers(uniqueSc);
-    } else {
-        setScNumbers([]);
-    }
-}, [selectedCustomer, data]);
+            const uniqueSc = [...new Set(filtered.map((item) => item.service_number))];
+            setScNumbers(uniqueSc);
+        } else {
+            setScNumbers([]);
+        }
+    }, [selectedCustomer, data]);
 
 
 
-   const fetchActuals = async () => {
-    try {
-        setLoading(true);
+    const fetchActuals = async () => {
+        try {
+            setLoading(true);
 
-        const res = await api.get<Actuals[]>("/actuals/list");
-        const apiData = res.data;
+            const res = await api.get<Actuals[]>("/actuals/list");
+            const apiData = res.data;
 
-        // ✅ Set main data
-        setData(apiData);
+            // ✅ Set main data
+            setData(apiData);
 
-        // ✅ Unique Customers
-        const uniqueCustomers = Array.from(
-            new Set(apiData.map((item) => item.customer_name))
-        );
-        setCustomers(uniqueCustomers);
+            // ✅ Unique Customers
+            const uniqueCustomers = Array.from(
+                new Set(apiData.map((item) => item.customer_name))
+            );
+            setCustomers(uniqueCustomers);
 
-        // ✅ Unique SC Numbers (ALL SC initially)
-        const uniqueScNumbers = Array.from(
-            new Set(apiData.map((item) => item.sc_number))
-        );
-        setScNumbers(uniqueScNumbers);
+            // ✅ Unique SC Numbers (ALL SC initially)
+            const uniqueScNumbers = Array.from(
+                new Set(apiData.map((item) => item.service_number))
+            );
+            setScNumbers(uniqueScNumbers);
 
-    } catch (error) {
-        console.error("API Error:", error);
-    } finally {
-        setLoading(false);
-    }
-};
+        } catch (error) {
+            console.error("API Error:", error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (recordToDelete === null) return;
+        try {
+            setDeleting(true);
+            console.log(`[Frontend] Calling DELETE for record: ${recordToDelete}`);
+            await api.delete(`/actuals/${recordToDelete}`);
+            toast.success("Record deleted successfully");
+            setIsDeleteDialogOpen(false);
+            setRecordToDelete(null);
+            fetchActuals();
+        } catch (err: any) {
+            console.error("[Frontend] Delete failed:", err);
+            toast.error(err.response?.data?.detail || "Failed to delete record");
+        } finally {
+            setDeleting(false);
+        }
+    };
 
 
     const handleSearch = () => {
-    setAppliedYear(selectedYear);
-    setAppliedMonth(selectedMonth);
-    setAppliedCustomer(selectedCustomer);
-    setAppliedSc(selectedSc);
-    setIsFilterApplied(true); // ✅ apply filter only after click
-};
+        setAppliedYear(selectedYear);
+        setAppliedMonth(selectedMonth);
+        setAppliedCustomer(selectedCustomer);
+        setAppliedSc(selectedSc);
+        setIsFilterApplied(true); // ✅ apply filter only after click
+    };
 
-const handleCancel = () => {
-    const currentYear = new Date().getFullYear().toString();
-    const currentMonth = (new Date().getMonth() + 1).toString();
+    const handleCancel = () => {
+        const currentYear = new Date().getFullYear().toString();
+        const currentMonth = (new Date().getMonth() + 1).toString();
 
-    setSelectedYear(currentYear);
-    setSelectedMonth(currentMonth);
-    setSelectedCustomer("");
-    setSelectedSc("");
-    setSearchKeyword("");
+        setSelectedYear(currentYear);
+        setSelectedMonth(currentMonth);
+        setSelectedCustomer("");
+        setSelectedSc("");
+        setSearchKeyword("");
 
-    setAppliedYear(currentYear);
-    setAppliedMonth(currentMonth);
-    setAppliedCustomer("");
-    setAppliedSc("");
+        setAppliedYear(currentYear);
+        setAppliedMonth(currentMonth);
+        setAppliedCustomer("");
+        setAppliedSc("");
 
-    setIsFilterApplied(false); // ✅ show all data again
-};
+        setIsFilterApplied(false); // ✅ show all data again
+    };
 
 
-     const filteredData = data.filter((row) => {
-    // ✅ Apply dropdown filters only if search button clicked
-    const matchesYear = !isFilterApplied || row.actual_year.toString() === appliedYear;
-    const matchesMonth = !isFilterApplied || row.actual_month.toString() === appliedMonth;
+    const filteredData = data.filter((row) => {
+        // ✅ Apply dropdown filters only if search button clicked
+        const matchesYear = !isFilterApplied || row.year?.toString() === appliedYear;
+        const matchesMonth = !isFilterApplied || row.month?.toString() === appliedMonth;
 
-    const matchesCustomer =
-        !isFilterApplied ||
-        appliedCustomer === "" ||
-        appliedCustomer === "all" ||
-        row.customer_name === appliedCustomer;
+        const matchesCustomer =
+            !isFilterApplied ||
+            appliedCustomer === "" ||
+            appliedCustomer === "all" ||
+            row.customer_name === appliedCustomer;
 
-    const matchesSc =
-        !isFilterApplied ||
-        appliedSc === "" ||
-        appliedSc === "all" ||
-        row.sc_number === appliedSc;
+        const matchesSc =
+            !isFilterApplied ||
+            appliedSc === "" ||
+            appliedSc === "all" ||
+            row.service_number === appliedSc;
 
-    // ✅ Keyword search ALWAYS works
-    const matchesSearch =
-        searchKeyword === "" ||
-        Object.values(row).some((val) =>
-            String(val).toLowerCase().includes(searchKeyword.toLowerCase())
+        // ✅ Keyword search ALWAYS works
+        const matchesSearch =
+            searchKeyword === "" ||
+            Object.values(row).some((val) =>
+                String(val).toLowerCase().includes(searchKeyword.toLowerCase())
+            );
+
+        return (
+            matchesYear &&
+            matchesMonth &&
+            matchesCustomer &&
+            matchesSc &&
+            matchesSearch
         );
-
-    return (
-        matchesYear &&
-        matchesMonth &&
-        matchesCustomer &&
-        matchesSc &&
-        matchesSearch
-    );
-});
+    });
 
     const months = [
         { value: "1", label: "January" },
@@ -201,7 +236,7 @@ const handleCancel = () => {
                         <div className="p-2 bg-slate-50 border border-slate-200 rounded-lg flex flex-wrap gap-2 items-center">
                             <span className="text-sm font-semibold text-slate-600 mr-2">Search</span>
                             {/* Customer Dropdown */}
-<Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
+                            <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
                                 <SelectTrigger className="w-[180px] h-9 bg-white border-slate-300 text-sm">
                                     <SelectValue placeholder="Select Customer" />
                                 </SelectTrigger>
@@ -290,31 +325,43 @@ const handleCancel = () => {
                                         <TableHead className="font-semibold text-white py-1 h-8 whitespace-nowrap text-xs">SC Number</TableHead>
                                         <TableHead className="font-semibold text-white py-1 h-8 whitespace-nowrap text-xs text-center">PDF</TableHead>
                                         <TableHead className="font-semibold text-white py-1 h-8 whitespace-nowrap text-xs text-center">Auto Reconciled Bill</TableHead>
+                                        <TableHead className="font-semibold text-white py-1 h-8 whitespace-nowrap text-xs text-center">Action</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {filteredData.length > 0 ? (
-                                        filteredData.map((row,index) => (
+                                        filteredData.map((row, index) => (
                                             <TableRow key={index} className="hover:bg-slate-50 h-8">
-                                                <TableCell className="py-1 text-xs">{months.find(m => m.value === row.actual_month.toString())?.label}</TableCell>
-                                                <TableCell className="py-1 text-xs">{row.actual_year}</TableCell>
+                                                <TableCell className="py-1 text-xs">{months.find(m => m.value === row.month?.toString())?.label}</TableCell>
+                                                <TableCell className="py-1 text-xs">{row.year}</TableCell>
                                                 <TableCell className="py-1 text-xs">{row.customer_name}</TableCell>
-                                                <TableCell className="py-1 text-xs">{row.sc_number}</TableCell>
+                                                <TableCell className="py-1 text-xs">{row.service_number}</TableCell>
                                                 <TableCell className="py-1 text-center">
-                                                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => navigate(`/windmill/actuals/pdf/${row.client_eb_id}`)}>
+                                                    <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => {
+                                                        const targetId = row.source === 'System-Final-Verified' ? row.client_eb_id : row.id;
+                                                        navigate(`/windmill/actuals/pdf/${targetId}`)
+                                                    }}>
                                                         <FileText className="h-3.5 w-3.5 text-red-500" />
                                                     </Button>
                                                 </TableCell>
                                                 <TableCell className="py-1 text-center">
-                                                    <Button variant="ghost" size="icon" className="h-6 w-6">
-                                                        <FileText className="h-3.5 w-3.5 text-red-500" />
-                                                    </Button>
+                                                    {row.manual_adjusted_total !== null ? (
+                                                        <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => {
+                                                            const targetId = row.source === 'System-Final-Verified' ? row.client_eb_id : row.id;
+                                                            navigate(`/windmill/actuals/reconcile/${targetId}`)
+                                                        }}>
+                                                            <FileText className="h-3.5 w-3.5 text-blue-500" />
+                                                        </Button>
+                                                    ) : "-"}
+                                                </TableCell>
+                                                <TableCell className="py-1 text-center">
+                                                    -
                                                 </TableCell>
                                             </TableRow>
                                         ))
                                     ) : (
                                         <TableRow>
-                                            <TableCell colSpan={5} className="text-center py-4 text-slate-500">
+                                            <TableCell colSpan={7} className="text-center py-4 text-slate-500">
                                                 No records found
                                             </TableCell>
                                         </TableRow>
@@ -325,6 +372,32 @@ const handleCancel = () => {
                     </div>
                 </div>
             </div>
+
+
+
+            <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Record</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Are you sure you want to delete this allotment record (ID: {recordToDelete})? This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={deleting} onClick={() => setRecordToDelete(null)}>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                            className="bg-red-600 hover:bg-red-700 text-white"
+                            onClick={(e) => {
+                                e.preventDefault(); // Prevent automatic closing so state doesn't wipe
+                                handleDelete();
+                            }}
+                            disabled={deleting}
+                        >
+                            {deleting ? "Deleting..." : "Delete"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     );
 };

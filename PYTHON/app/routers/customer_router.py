@@ -120,6 +120,31 @@ async def export_customers_excel(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
 
+# -----------------------------------------------------
+# 🔵 FOR ENERGY ALLOTMENT (Joined Customer & Service)
+# -----------------------------------------------------
+@router.get("/for-energy-allotment")
+async def get_customers_for_allotment(user: dict = Depends(get_current_user)):
+    """Returns a list of customers and their service numbers specifically for the Energy Allotment grid.
+    Joins master_customers with customer_service to provide all necessary details in one call.
+    """
+    conn = None
+    cursor = None
+    try:
+        conn = get_connection()
+        cursor = conn.cursor(pymysql.cursors.DictCursor)
+
+        cursor.callproc("masters.sp_get_customers_for_energy_allotment")
+        rows = cursor.fetchall()
+        return rows
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
 @router.get("/{customer_id}")
 async def get_customer(customer_id: int, user: dict = Depends(get_current_user)):
 

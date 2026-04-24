@@ -17,6 +17,7 @@ from app.database import get_connection, DB_NAME_WINDMILL
 from app.routers.eb_statement_upload import extract_eb_statement_data
 import csv
 import io
+import pymysql
 
 router = APIRouter(prefix="/eb-solar", tags=["EB Statement Solar"]) 
 
@@ -88,13 +89,7 @@ async def upload_eb_statement_solar(
     conn = get_connection(db_name="solar")
     cursor = conn.cursor()
     try:
-        cursor.execute(
-            """
-            SELECT id FROM solar.eb_statement_solar 
-            WHERE solar_id=%s AND month=%s AND year=%s
-            """,
-            (solar_id, month, year)
-        )
+        cursor.callproc("solar.sp_check_eb_solar_duplicate", (solar_id, month, year))
         existing_record = cursor.fetchone()
         if existing_record:
             raise HTTPException(
@@ -135,7 +130,7 @@ async def upload_eb_statement_solar(
     try:
         cursor.callproc(
             "solar.sp_create_eb_solar_header",
-            (int(solar_id) if solar_id and str(solar_id).isdigit() else solar_id, month, year, file_path, 1)
+            (int(solar_id) if solar_id and str(solar_id).isdigit() else solar_id, month_name, year, file_path, 1)
         )
         conn.commit()
         result = cursor.fetchone()
@@ -279,14 +274,10 @@ def search_eb_solar(
         # Resolve solar_number to solar_id if provided
         if solar_number:
             try:
-                wm_conn = get_connection(db_name=DB_NAME_WINDMILL)
-                wm_cursor = wm_conn.cursor()
-                wm_cursor.execute("SELECT id FROM masters.master_windmill WHERE windmill_number = %s", (solar_number,))
-                wm_row = wm_cursor.fetchone()
+                cursor.callproc("masters.sp_get_windmill_id_by_number", (solar_number,))
+                wm_row = cursor.fetchone()
                 if wm_row:
                     solar_id = wm_row[0]
-                wm_cursor.close()
-                wm_conn.close()
             except Exception as wm_exc:
                 print(f"Warning: Could not resolve solar_number to id: {wm_exc}")
 
@@ -310,14 +301,9 @@ def search_eb_solar(
         solar_map = {}
         if solar_ids:
             try:
-                windmill_conn = get_connection(db_name=DB_NAME_WINDMILL)
-                wm_cursor = windmill_conn.cursor()
-                placeholders = ",".join(["%s"] * len(solar_ids))
-                wm_cursor.execute(f"SELECT id, windmill_number FROM masters.master_windmill WHERE id IN ({placeholders})", solar_ids)
-                for row in wm_cursor.fetchall():
+                cursor.callproc("masters.sp_get_windmill_numbers_by_ids", (",".join(map(str, solar_ids)),))
+                for row in cursor.fetchall():
                     solar_map[row[0]] = row[1]
-                wm_cursor.close()
-                windmill_conn.close()
             except Exception as e:
                 print(f"Warning: Could not fetch solar numbers for items: {e}")
         
@@ -407,14 +393,9 @@ def get_all_eb_solar(
         solar_map = {}
         if solar_ids:
             try:
-                windmill_conn = get_connection(db_name=DB_NAME_WINDMILL)
-                wm_cursor = windmill_conn.cursor()
-                placeholders = ",".join(["%s"] * len(solar_ids))
-                wm_cursor.execute(f"SELECT id, windmill_number FROM masters.master_windmill WHERE id IN ({placeholders})", solar_ids)
-                for row in wm_cursor.fetchall():
+                cursor.callproc("masters.sp_get_windmill_numbers_by_ids", (",".join(map(str, solar_ids)),))
+                for row in cursor.fetchall():
                     solar_map[row[0]] = row[1]
-                wm_cursor.close()
-                windmill_conn.close()
             except Exception as e:
                 print(f"Warning: Could not fetch solar numbers: {e}")
         
@@ -495,6 +476,9 @@ async def get_eb_statement_solar_details(eb_header_id: int):
     finally:
         cursor.close()
         conn.close()
+
+
+
 
 
 # --------------------------------------------------
@@ -589,9 +573,13 @@ async def read_eb_statement_solar_pdf(
         if solar_id:
             # Determine if solar_id is numeric id or actual windmill number
             if str(solar_id).isdigit():
-                cursor.execute("SELECT windmill_number FROM masters.master_windmill WHERE id=%s", (int(solar_id),))
+                cursor.callproc("masters.sp_get_windmill_number_by_id_only", (int(solar_id),))
             else:
-                cursor.execute("SELECT windmill_number FROM masters.master_windmill WHERE windmill_number=%s", (solar_id,))
+                cursor.callproc("masters.sp_get_windmill_id_by_number", (solar_id,))
+                res = cursor.fetchone()
+                if res:
+                    cursor.callproc("masters.sp_get_windmill_number_by_id_only", (res[0],))
+            
             row = cursor.fetchone()
             expected_wm = row[0] if row else ""
     finally:
@@ -623,7 +611,7 @@ async def read_eb_statement_solar_pdf(
         
         cursor.callproc(
             "solar.sp_create_eb_solar_header",
-            (int(solar_id) if solar_id and str(solar_id).isdigit() else solar_id, final_month, final_year, unique_name, 1)
+            (int(solar_id) if solar_id and str(solar_id).isdigit() else solar_id, month_name, final_year, unique_name, 1)
         )
         conn.commit()
         result = cursor.fetchone()
@@ -661,11 +649,24 @@ async def read_eb_statement_solar_metadata(filename: str, user: dict = Depends(g
     cursor = conn.cursor()
     try:
         # 1. Get header info from DB
-        cursor.callproc("solar.sp_get_eb_solar_metadata_by_filename", (filename,))
+        cursor.callproc("solar.sp_get_eb_solar_by_filename_extended", (filename,))
         row = cursor.fetchone()
         header_id = row[0] if row else None
         db_month = row[1] if row else None
         db_year = row[2] if row else None
+        is_submitted = row[3] if row else 0
+
+        if header_id is None:
+             cursor.callproc("solar.sp_get_eb_solar_metadata_by_filename", (filename,))
+             row = cursor.fetchone()
+             if row:
+                header_id = row[0]
+                db_month = row[1]
+                db_year = row[2]
+                # is_submitted might need a separate check if not in SP
+                cursor.callproc("solar.sp_get_eb_solar_by_id_simple", (header_id,))
+                sub_row = cursor.fetchone()
+                is_submitted = sub_row[3] if sub_row else 0
 
         # 2. Determine file path
         if os.path.isabs(filename):
@@ -698,7 +699,7 @@ async def read_eb_statement_solar_metadata(filename: str, user: dict = Depends(g
 
         # Try by solar_id if header is not found
         if header_id is None and solar_id_val is not None:
-            cursor.execute("SELECT id, month, year FROM solar.eb_statement_solar WHERE solar_id=%s ORDER BY created_at DESC LIMIT 1", (solar_id_val,))
+            cursor.callproc("solar.sp_get_eb_solar_latest_by_solar_id", (solar_id_val,))
             row = cursor.fetchone()
             header_id = row[0] if row else None
             if not db_month: db_month = row[1] if row else None
@@ -707,16 +708,16 @@ async def read_eb_statement_solar_metadata(filename: str, user: dict = Depends(g
         # Prepare windmill number context
         master_wm = ""
         if header_id is not None:
-            cursor.execute("SELECT solar_id FROM solar.eb_statement_solar WHERE id=%s", (header_id,))
+            cursor.callproc("solar.sp_get_eb_solar_by_id_simple", (header_id,))
             row = cursor.fetchone()
-            solar_id_from_header = row[0] if row else None
+            solar_id_from_header = row[5] if row else None
             if solar_id_from_header is not None:
-                cursor.execute("SELECT windmill_number FROM masters.master_windmill WHERE id=%s", (solar_id_from_header,))
+                cursor.callproc("masters.sp_get_windmill_number_by_id_only", (solar_id_from_header,))
                 row2 = cursor.fetchone()
                 master_wm = row2[0] if row2 else ""
 
         if not master_wm and solar_id_val is not None:
-            cursor.execute("SELECT windmill_number FROM masters.master_windmill WHERE id=%s", (solar_id_val,))
+            cursor.callproc("masters.sp_get_windmill_number_by_id_only", (solar_id_val,))
             row2 = cursor.fetchone()
             master_wm = row2[0] if row2 else ""
 
@@ -736,6 +737,7 @@ async def read_eb_statement_solar_metadata(filename: str, user: dict = Depends(g
         return {
             "status": "success",
             "header_id": header_id,
+            "is_submitted": is_submitted,
             "parsed": parsed_data,
             "warning": warning_text,
         }
@@ -743,6 +745,63 @@ async def read_eb_statement_solar_metadata(filename: str, user: dict = Depends(g
         cursor.close()
         conn.close()
 
+
+@router.get("/applicable-charges/summary")
+async def get_solar_applicable_charges_summary(
+    year: int,
+    month: str,
+    user: dict = Depends(get_current_user)
+):
+    import pymysql
+    conn = get_connection(db_name="solar")
+    cursor = conn.cursor(pymysql.cursors.DictCursor)
+    
+    try:
+        month_names = {
+            "1": "January", "2": "February", "3": "March", "4": "April",
+            "5": "May", "6": "June", "7": "July", "8": "August",
+            "9": "September", "10": "October", "11": "November", "12": "December"
+        }
+        db_month = month_names.get(str(month), month)
+        print(f"🔍 Solar Summary Request: month={month} ({db_month}), year={year}")
+
+        query = """
+            SELECT 
+                TRIM(mw.windmill_number) as windmill_number,
+                mcc.charge_code,
+                ac.total_charge
+            FROM solar.eb_statement_solar s
+            JOIN solar.eb_statement_solar_applicable_charges ac ON s.id = ac.eb_header_id
+            JOIN masters.master_consumption_chargers mcc ON ac.charge_id = mcc.id
+            JOIN masters.master_windmill mw ON s.solar_id = mw.id
+            WHERE (s.month = %s OR s.month = %s) AND s.year = %s
+        """
+        cursor.execute(query, (db_month, str(month), year))
+        rows = cursor.fetchall()
+        print(f"🔍 Found {len(rows)} solar charge records")
+        
+        result_map = {}
+        for row in rows:
+            wm = str(row['windmill_number'])
+            code = str(row['charge_code'])
+            val = float(row['total_charge']) if row['total_charge'] else 0.0
+            
+            if wm not in result_map:
+                result_map[wm] = {}
+            
+            result_map[wm][code] = val
+            print(f"   -> Windmill: {wm}, Code: {code}, Val: {val}")
+            
+        return {
+            "status": "success",
+            "data": result_map
+        }
+    except Exception as e:
+        print(f"Error in get_solar_applicable_charges_summary: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        cursor.close()
+        conn.close()
 
 @router.post("/save-details")
 async def save_eb_statement_solar_details(

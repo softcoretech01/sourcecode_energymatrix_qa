@@ -98,8 +98,9 @@ async def create_windmill(data: WindmillCreate, user: dict = Depends(get_current
 
         conn.commit()
 
-        cursor.execute("SELECT LAST_INSERT_ID() AS id")
-        new_id = cursor.fetchone().get("id")
+        cursor.callproc("masters.sp_get_last_insert_id")
+        result = cursor.fetchone()
+        new_id = result.get("id") if result else None
 
         return {"message": "Windmill created successfully", "id": new_id}
 
@@ -123,6 +124,30 @@ async def get_windmills(user: dict = Depends(get_current_user)):
         cursor = conn.cursor(pymysql.cursors.DictCursor)
 
         cursor.callproc("sp_get_windmills")
+        result = cursor.fetchall()
+        return result
+
+    finally:
+        if cursor:
+            cursor.close()
+        if conn:
+            conn.close()
+
+
+# -------------------------------------------------------
+# GET ACTIVE & POSTED WINDMILLS
+# -------------------------------------------------------
+@router.get("/active-posted")
+async def get_active_posted_windmills(user: dict = Depends(get_current_user)):
+    conn = None
+    cursor = None
+    try:
+        conn = get_connection()
+        cursor = conn.cursor(pymysql.cursors.DictCursor)
+
+        # Select windmills that are marked 'Active' and have been 'Posted' (is_submitted = 1)
+        # This is specifically used by the Energy Allotment module for dynamic header generation.
+        cursor.callproc("masters.sp_get_active_posted_windmills")
         result = cursor.fetchall()
         return result
 

@@ -35,9 +35,54 @@ const [uom, setUom] = useState("per_unit");
 const [type, setType] = useState("unit");
 const [description, setDescription] = useState("");
 const [validUpto, setValidUpto] = useState<Date>();
-const [discount, setDiscount] = useState("50");
+const [discount, setDiscount] = useState("");
 const [showFormula, setShowFormula] = useState(false);
    
+    const [formula, setFormula] = useState<string>("");
+
+    useEffect(() => {
+        const fetchFormula = async () => {
+            if (!cost) {
+                setFormula("");
+                return;
+            }
+            try {
+                const res = await api.post("/consumption/preview-formula", {
+                    charge_code: chargeCode || "",
+                    cost: Number(cost),
+                    uom: uom || "",
+                    type: type || "",
+                    discount_charges: Number(discount) || 0
+                });
+                setFormula(res.data.formula);
+            } catch (err) {
+                console.error("Formula fetch error:", err);
+            }
+        };
+        fetchFormula();
+    }, [chargeCode, cost, uom, type, discount]);
+
+    const formatFormula = (text: string) => {
+        if (!text) return null;
+        
+        // Handle fractions by splitting on [num / den]
+        const parts = text.split(/(\[.+?\s\/\s.+?\])/g);
+        
+        return parts.map((part, idx) => {
+            if (part.startsWith('[') && part.endsWith(']')) {
+                const inner = part.slice(1, -1);
+                const [num, den] = inner.split('/').map(s => s.trim());
+                return (
+                    <div key={idx} className="inline-flex flex-col items-center mx-1 align-middle text-slate-800">
+                        <span className="border-b border-slate-400 px-2 leading-tight">{num}</span>
+                        <span className="leading-tight">{den}</span>
+                    </div>
+                );
+            }
+            return <span key={idx} className="text-slate-700">{part.replace(/\*/g, '×').replace(/[()]/g, '')}</span>;
+        });
+    };
+
     const getUomLabel = (val: string) => {
         if (val === "per_unit") return "unit";
         if (val === "paisa") return "paisa";
@@ -66,7 +111,7 @@ const fetchConsumption = async () => {
     setUom(data.uom);
     setType(data.type);
     setDescription(data.charge_description || "");
-    setDiscount("50");
+    setDiscount(data.discount_charges ? data.discount_charges.toString() : "");
 
     if (data.valid_upto) {
       setValidUpto(new Date(data.valid_upto));
@@ -88,7 +133,7 @@ const fetchConsumption = async () => {
       type: type,
       charge_description: description,
       valid_upto: validUpto ? format(validUpto, "yyyy-MM-dd") : null,
-      discount_charges: 50,
+      discount_charges: discount ? parseFloat(discount) : null,
       is_submitted: 0,
     };
 
@@ -112,7 +157,7 @@ const fetchConsumption = async () => {
       type: type,
       charge_description: description,
       valid_upto: validUpto ? format(validUpto, "yyyy-MM-dd") : null,
-      discount_charges: 50,
+      discount_charges: discount ? parseFloat(discount) : null,
       is_submitted: 1,
     };
 
@@ -224,8 +269,9 @@ const fetchConsumption = async () => {
                                         <SelectValue placeholder="Select Type" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="day">Day</SelectItem>
                                         <SelectItem value="unit">Unit</SelectItem>
+                                        <SelectItem value="day">Day</SelectItem>
+                                        <SelectItem value="month">Month</SelectItem>
                                         <SelectItem value="year">Year</SelectItem>
                                     </SelectContent>
                                 </Select>
@@ -265,44 +311,35 @@ const fetchConsumption = async () => {
                             <div className="space-y-1.5 flex flex-col">
                                 <label className="text-sm font-semibold text-slate-700">Discount Charges</label>
                                 <div className="flex items-center gap-2">
-                                    <div className="flex items-center justify-center px-4 py-2 bg-slate-100 border border-slate-300 rounded h-9 min-w-[120px] text-sm font-medium text-slate-700">
-                                        50%
-                                    </div>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => setShowFormula(!showFormula)}
-                                        className="h-9 px-3 bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 whitespace-nowrap text-xs shadow-sm"
-                                    >
-                                        {showFormula ? "Hide" : "Show Formula"}
-                                    </Button>
+                                    <Input
+                                        value={discount}
+                                        onChange={(e) => setDiscount(e.target.value)}
+                                        placeholder="Enter Discount"
+                                        disabled={isReadOnly}
+                                        className="bg-white border-slate-300 h-9 text-xs w-[120px]"
+                                    />
+                                    {cost && Number(cost) !== 0 && (
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setShowFormula(!showFormula)}
+                                            className="h-9 px-3 bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 whitespace-nowrap text-xs shadow-sm"
+                                        >
+                                            {showFormula ? "Hide" : "Show Formula"}
+                                        </Button>
+                                    )}
                                 </div>
                             </div>
                         </div>
 
-                        {showFormula && (
+                        {cost && Number(cost) !== 0 && showFormula && formula && (
                             <div className="pt-6 mt-6 border-t border-slate-200">
-                                <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 inline-block animate-in fade-in zoom-in duration-200">
-                                    <div className="flex items-center gap-6 text-sm">
-                                        <span className="font-bold text-slate-700 uppercase tracking-widest text-xs">Formula</span>
-                                        <div className="flex flex-col items-center justify-center font-medium text-slate-800">
-                                            <div className="pb-2 border-b-2 border-slate-300 w-full text-center">
-                                                <span className="bg-white px-2 py-1 rounded shadow-sm border border-slate-200 mr-2">( {costDisplay} / 2 )</span>
-                                                <span className="mx-1 text-slate-500">×</span>
-                                                <span className="ml-2">365 <span className="text-xs text-slate-500 font-normal italic">(Days in a year)</span></span>
-                                                <span className="mx-2 text-slate-500">×</span>
-                                                <span className="text-slate-800">No. of days in a month</span>
-                                            </div>
-                                            <div className="pt-2 text-center">
-                                                <span>Total units generated by windmill per month</span>
-                                                <span className="mx-2 text-slate-500">−</span>
-                                                <span className="text-slate-500 font-light">(</span>
-                                                <span>Total units generated by windmill per month</span>
-                                                <span className="mx-2 text-slate-500">×</span>
-                                                <span>Transmission Loss</span>
-                                                <span className="text-slate-500 font-light">)</span>
-                                            </div>
+                                <div className="bg-slate-50/50 p-4 rounded-lg border border-slate-200 inline-block">
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Formula Preview</span>
+                                        <div className="text-sm font-medium flex items-center flex-wrap leading-relaxed">
+                                            {formatFormula(formula)}
                                         </div>
                                     </div>
                                 </div>

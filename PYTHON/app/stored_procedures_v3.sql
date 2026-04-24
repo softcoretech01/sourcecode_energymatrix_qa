@@ -329,12 +329,13 @@ DROP PROCEDURE IF EXISTS windmill.sp_insert_eb_statement_charge //
 CREATE DEFINER=`root`@`localhost` PROCEDURE windmill.sp_insert_eb_statement_charge(
     IN p_header_id INT,
     IN p_charge_id INT,
+    IN p_description VARCHAR(255),
     IN p_amount DECIMAL(18,4),
     IN p_user_id INT
 )
 BEGIN
-    INSERT INTO windmill.eb_statements_applicable_charges (eb_header_id, charge_id, total_charge, created_by)
-    VALUES (p_header_id, p_charge_id, p_amount, p_user_id);
+    INSERT INTO windmill.eb_statements_applicable_charges (eb_header_id, charge_id, charge_description, total_charge, created_by)
+    VALUES (p_header_id, p_charge_id, p_description, p_amount, p_user_id);
 END //
 
 DROP PROCEDURE IF EXISTS windmill.insert_eb_bill_adjustment_charge //
@@ -360,23 +361,42 @@ BEGIN
     DECLARE v_bill_month INT;
     DECLARE v_customer_id INT;
     DECLARE v_sc_id INT;
+    DECLARE v_whlc_cost DECIMAL(18,4);
+    DECLARE v_whlc_discount DECIMAL(18,4);
+    DECLARE v_whlc_factor DECIMAL(18,4) DEFAULT 0.54; -- Fallback to 0.54
 
     -- Handler
     DECLARE CONTINUE HANDLER FOR NOT FOUND 
     SET v_bill_year = NULL, v_bill_month = NULL, 
         v_customer_id = NULL, v_sc_id = NULL;
 
-    -- Get header/customer direct from eb_bill
+    -- 1. Get header/customer direct from eb_bill
     SELECT bill_year, bill_month, customer_id, sc_id
     INTO v_bill_year, v_bill_month, v_customer_id, v_sc_id
     FROM eb_bill
     WHERE id = p_eb_bill_header_id
     LIMIT 1;
 
-    -- Calculate
-    SET v_calculated_wheeling = ROUND(COALESCE(p_wheeling_charges,0) / 0.54, 2);
+    -- 2. Get Wheeling Charges Configuration from Masters
+    SELECT cost, discount_charges 
+    INTO v_whlc_cost, v_whlc_discount
+    FROM masters.master_consumption_chargers
+    WHERE REPLACE(LOWER(charge_name), ' ', '') = 'wheelingcharges'
+    LIMIT 1;
 
-    -- Insert adjustment
+    -- 3. Calculate dynamic factor: (cost * discount / 100)
+    -- e.g. (1.040 * 50 / 100) = 0.52
+    IF v_whlc_cost IS NOT NULL AND v_whlc_discount IS NOT NULL THEN
+        SET v_whlc_factor = v_whlc_cost * (v_whlc_discount / 100.0);
+    END IF;
+
+    -- Prevent division by zero
+    IF v_whlc_factor = 0 THEN SET v_whlc_factor = 0.54; END IF;
+
+    -- 4. Calculate actual wheeling value
+    SET v_calculated_wheeling = ROUND(COALESCE(p_wheeling_charges,0) / v_whlc_factor, 2);
+
+    -- 5. Insert adjustment
     INSERT INTO eb_bill_adjustment_charges(
         eb_bill_header_id,
         energy_number,
@@ -399,7 +419,7 @@ BEGIN
         p_created_by,NOW(),p_modified_by,NOW()
     );
 
-    -- SAFE insert into actual
+    -- 6. SAFE insert into actual
     IF v_bill_year IS NOT NULL 
        AND v_bill_month IS NOT NULL
        AND v_customer_id IS NOT NULL

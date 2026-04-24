@@ -746,7 +746,7 @@ async def read_eb_statement_solar_metadata(filename: str, user: dict = Depends(g
         conn.close()
 
 
-@router.get("/applicable-charges/summary")
+@router.get("/applicable-charges/summary/")
 async def get_solar_applicable_charges_summary(
     year: int,
     month: str,

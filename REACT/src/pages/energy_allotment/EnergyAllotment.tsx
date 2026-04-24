@@ -187,7 +187,39 @@ export default function EnergyAllotment() {
         }));
     };
 
-    // Removed fetchAllotmentOrders effect as requested by the user so the File Name column is initially empty
+    // Fetch Allotment Orders when month/year changes
+    useEffect(() => {
+        const fetchAllotmentOrders = async () => {
+            try {
+                const response = await api.get(`/windmills/allotment-order/list?year=${selectedYear}&month=${selectedMonth}`);
+                if (response.data && response.data.status === "success") {
+                    const orders = response.data.data;
+                    const newUploads: Record<string, { file: File | null, fileName: string, filePath?: string }> = {};
+                    orders.forEach((order: any) => {
+                        // Assuming the API returns windmill_number or we map it
+                        // The SP sp_get_allotment_orders usually returns windmill_number, file_name, file_path
+                        if (order.windmill_number && order.file_name) {
+                            newUploads[order.windmill_number] = {
+                                file: null,
+                                fileName: order.file_name,
+                                filePath: order.file_path
+                            };
+                        }
+                    });
+                    setUploads(newUploads);
+                } else {
+                    setUploads({});
+                }
+            } catch (error) {
+                console.error("Error fetching allotment orders:", error);
+                setUploads({});
+            }
+        };
+
+        if (selectedYear && selectedMonth) {
+            fetchAllotmentOrders();
+        }
+    }, [selectedYear, selectedMonth]);
 
     // State for Charge Allocation (8 windmills)
 
@@ -198,7 +230,7 @@ export default function EnergyAllotment() {
     useEffect(() => {
         const fetchWindmills = async () => {
             try {
-                const response = await api.get("/windmills/active-posted");
+                const response = await api.get("/windmills/active-posted/");
                 if (Array.isArray(response.data)) {
                     const numbers = Array.from(new Set(response.data.map((item: any) => String(item.windmill_number || '').trim()))).filter(Boolean);
                     if (numbers.length > 0) {
@@ -242,27 +274,59 @@ export default function EnergyAllotment() {
                 const prevMonthName = monthNames[prevMIdx];
                 console.log(`🔍 Fetching Applicable Charges for PREVIOUS month ${prevYear}-${prevMonthName}...`);
 
-                const response = await api.get(`/eb/applicable-charges/summary?year=${prevYear}&month=${prevMonthName}`);
-                if (response.data && response.data.status === "success") {
-                    const chargesMap = response.data.data;
-                    console.log("✅ Charges Summary fetched successfully:", chargesMap);
-                    setFetchedChargesSummary(chargesMap);
+                // Fetch both applicable charges and saved charges in parallel
+                const [applicableRes, savedRes] = await Promise.all([
+                    api.get(`/eb/applicable-charges/summary?year=${prevYear}&month=${prevMonthName}`),
+                    api.get(`/windmills/charge-allotment/all-by-month?year=${selectedYear}&month=${selectedMonth}`)
+                ]);
 
-                    setChargeAllocationRows(windmillNumbers.map(wm => ({
-                        windmill: wm,
-                        customer: "",
-                        seNumber: "",
-                        mrc: 0,
-                        omc: 0,
-                        trc: 0,
-                        oc1: 0,
-                        kp: 0,
-                        ec: 0,
-                        shc: 0,
-                        other: 0,
-                        dc: 0,
-                    })));
+                let chargesMap: Record<string, any> = {};
+                if (applicableRes.data && applicableRes.data.status === "success") {
+                    chargesMap = applicableRes.data.data;
+                    setFetchedChargesSummary(chargesMap);
                 }
+
+                let savedWindmills: any[] = [];
+                if (savedRes.data && savedRes.data.status === "success") {
+                    savedWindmills = savedRes.data.windmill_charges || [];
+                }
+
+                setChargeAllocationRows(windmillNumbers.map(wm => {
+                    const saved = savedWindmills.find((s: any) => s.windmill === wm);
+                    if (saved) {
+                        return {
+                            windmill: wm,
+                            customer: saved.customer || "",
+                            seNumber: saved.seNumber || "",
+                            mrc: saved.mrc || 0,
+                            omc: saved.omc || 0,
+                            trc: saved.trc || 0,
+                            oc1: saved.oc1 || 0,
+                            kp: saved.kp || 0,
+                            ec: saved.ec || 0,
+                            shc: saved.shc || 0,
+                            other: saved.other || 0,
+                            dc: saved.dc || 0,
+                        };
+                    } else {
+                        const wmCharges = chargesMap[wm] || {};
+                        return {
+                            windmill: wm,
+                            customer: "",
+                            seNumber: "",
+                            mrc: wmCharges["C001"] || 0,
+                            omc: wmCharges["C002"] || 0,
+                            trc: wmCharges["C003"] || 0,
+                            oc1: wmCharges["C004"] || 0,
+                            kp: wmCharges["C005"] || 0,
+                            ec: wmCharges["C006"] || 0,
+                            shc: wmCharges["C007"] || 0,
+                            other: wmCharges["C008"] || 0,
+                            dc: wmCharges["C010"] || 0,
+                        };
+                    }
+                }));
+
             } catch (error) {
                 console.error("Error fetching previous month charges:", error);
                 setChargeAllocationRows(windmillNumbers.map(wm => ({
@@ -418,8 +482,17 @@ export default function EnergyAllotment() {
                 }
 
                 console.log(`🔍 Solar Sync: Fetching charges for ${prevYear}-${prevMonthNum}`);
-                const chargeRes = await api.get(`/eb-solar/applicable-charges/summary?year=${prevYear}&month=${prevMonthNum}`);
+                const [chargeRes, savedRes] = await Promise.all([
+                    api.get(`/eb-solar/applicable-charges/summary?year=${prevYear}&month=${prevMonthNum}`),
+                    api.get(`/windmills/charge-allotment/all-by-month?year=${selectedYear}&month=${selectedMonth}`)
+                ]);
+
                 console.log("🔍 Solar Sync API Response:", chargeRes.data);
+
+                let savedSolar: any[] = [];
+                if (savedRes.data && savedRes.data.status === "success") {
+                    savedSolar = savedRes.data.solar_charges || [];
+                }
 
                 if (chargeRes.data && chargeRes.data.status === "success") {
                     const dataMap = chargeRes.data.data;
@@ -440,6 +513,17 @@ export default function EnergyAllotment() {
                         if (row.chargeKey === 'other') code = 'C008';
                         if (row.chargeKey === 'dc') code = 'C010';
 
+                        const savedRow = savedSolar.find((s: any) => s.charge_code === code);
+                        if (savedRow) {
+                            return {
+                                ...row,
+                                customer: savedRow.customer || "",
+                                seNumber: savedRow.seNumber || "",
+                                value: savedRow.value || 0,
+                                isChecked: true
+                            };
+                        }
+
                         const val = wmCharges[code] || 0;
                         return {
                             ...row,
@@ -449,7 +533,31 @@ export default function EnergyAllotment() {
                     });
                     setSolarAllocationRows(initialRows);
                 } else {
-                    setSolarAllocationRows(createInitialSolarRows(currentLabels));
+                    const fallbackRows = createInitialSolarRows(currentLabels).map(row => {
+                        let code = "";
+                        if (row.chargeKey === 'mrc') code = 'C001';
+                        if (row.chargeKey === 'omc') code = 'C002';
+                        if (row.chargeKey === 'trc') code = 'C003';
+                        if (row.chargeKey === 'oc1') code = 'C004';
+                        if (row.chargeKey === 'kp') code = 'C005';
+                        if (row.chargeKey === 'ec') code = 'C006';
+                        if (row.chargeKey === 'shc') code = 'C007';
+                        if (row.chargeKey === 'other') code = 'C008';
+                        if (row.chargeKey === 'dc') code = 'C010';
+
+                        const savedRow = savedSolar.find((s: any) => s.charge_code === code);
+                        if (savedRow) {
+                            return {
+                                ...row,
+                                customer: savedRow.customer || "",
+                                seNumber: savedRow.seNumber || "",
+                                value: savedRow.value || 0,
+                                isChecked: true
+                            };
+                        }
+                        return row;
+                    });
+                    setSolarAllocationRows(fallbackRows);
                 }
             } catch (error) {
                 console.error("Error fetching solar charges:", error);
@@ -466,7 +574,7 @@ export default function EnergyAllotment() {
                 console.log("🔵 Fetching customers for energy allotment...");
 
                 // Use the new endpoint that includes customer IDs
-                const response = await api.get("/customers/for-energy-allotment");
+                const response = await api.get("/customers/for-energy-allotment/");
                 console.log("🔵 Raw API response:", response.data);
                 console.log("🔵 Response type:", typeof response.data, " | Is Array:", Array.isArray(response.data));
 

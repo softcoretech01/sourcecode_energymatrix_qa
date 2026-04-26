@@ -37,7 +37,7 @@ const handleChange = (e) => {
 
 const handleSave = async () => {
   try {
-    await api.post("/email-master/", {
+    await api.post("/email-master", {
       ...formData,
       occurrences: Number(formData.occurrences),
       email_time: formData.email_time + ":00",
@@ -56,7 +56,7 @@ const handleSave = async () => {
 
 const handlePost = async () => {
   try {
-    await api.post("/email-master/", {
+    await api.post("/email-master", {
       ...formData,
       status: 1,
       is_submitted: 1

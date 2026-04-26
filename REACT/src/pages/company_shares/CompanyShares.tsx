@@ -20,7 +20,7 @@ export default function CompanyShares() {
     const fetchTotalShares = async () => {
         try {
             console.log("Fetching company shares...");
-            const res = await api.get("/total-shares/");
+            const res = await api.get("/total-shares");
             console.log("Company shares data:", res.data);
             if (Array.isArray(res.data) && res.data.length > 0) {
                 const first = res.data[0];
@@ -65,7 +65,7 @@ export default function CompanyShares() {
             if (totalId) {
                 await api.put(`/total-shares/${totalId}`, payload);
             } else {
-                const res = await api.post("/total-shares/", payload);
+                const res = await api.post("/total-shares", payload);
                 setTotalId(res.data?.id ?? 1);
             }
 

@@ -75,7 +75,7 @@ export default function ShareHoldingsList() {
 
     const fetchCustomerShares = async () => {
         try {
-            const res = await api.get("/customer-shares/");
+            const res = await api.get("/customer-shares");
             // Handle both direct array response and nested data response
             const data = Array.isArray(res.data) ? res.data : (res.data?.data || []);
             setMasterData(Array.isArray(data) ? data.map((item: any) => ({ ...item, status: Number(item.status) === 1 ? 1 : 0 })) : []);
@@ -118,7 +118,7 @@ export default function ShareHoldingsList() {
 
     const fetchTotalCustomerShares = async () => {
         try {
-            const res = await api.get("/total-shares/");
+            const res = await api.get("/total-shares");
             const data = Array.isArray(res.data) ? res.data : [res.data];
             if (data.length > 0) {
                 setTotalCustomerShares(Number(data[0]?.total_customer_shares || 0));

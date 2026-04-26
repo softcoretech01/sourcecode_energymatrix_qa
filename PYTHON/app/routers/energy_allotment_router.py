@@ -399,7 +399,7 @@ async def export_charge_allotment(
 # -------------------------------------------------------
 # ENERGY ALLOTMENT FETCH SAVED DETAILS (single windmill)
 # -------------------------------------------------------
-@router.get("/charge-allotment/all-by-month/")
+@router.get("/charge-allotment/all-by-month")
 async def get_all_charge_allotments_by_month(
     year: int,
     month: int,

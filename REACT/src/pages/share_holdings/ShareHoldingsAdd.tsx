@@ -48,7 +48,7 @@ export default function ShareHoldingsAdd() {
 
     const fetchAllocatedShares = async () => {
         try {
-            const res = await api.get("/customer-shares/");
+            const res = await api.get("/customer-shares");
             const total = res.data.reduce((sum: number, share: any) => sum + Number(share.share_quantity || 0), 0);
             setAllocatedShares(total);
         } catch (error) {
@@ -69,7 +69,7 @@ export default function ShareHoldingsAdd() {
 
     const fetchTotalShares = async () => {
         try {
-            const res = await api.get("/total-shares/");
+            const res = await api.get("/total-shares");
             if (Array.isArray(res.data) && res.data.length > 0) {
                 const first = res.data[0];
                 setTotalShares(String(first.total_company_shares ?? ""));
@@ -128,7 +128,7 @@ export default function ShareHoldingsAdd() {
             if (id) {
                 await api.put(`/total-shares/${id}`, payload);
             } else {
-                const res = await api.post("/total-shares/", payload);
+                const res = await api.post("/total-shares", payload);
                 id = res.data?.id ?? null;
                 setTotalId(id);
             }
@@ -200,7 +200,7 @@ export default function ShareHoldingsAdd() {
         }
 
         try {
-            await api.post("/customer-shares/", {
+            await api.post("/customer-shares", {
                 customer_id: Number(currentCustomer),
                 share_quantity: Number(currentQuantity),
                 share_percentage: Number(calculatedPercentage),
@@ -276,7 +276,7 @@ export default function ShareHoldingsAdd() {
         }
 
         try {
-            await api.post("/customer-shares/", {
+            await api.post("/customer-shares", {
                 customer_id: Number(currentCustomer),
                 share_quantity: Number(currentQuantity),
                 share_percentage: Number(calculatedPercentage),

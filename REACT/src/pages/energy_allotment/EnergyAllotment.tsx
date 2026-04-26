@@ -230,7 +230,7 @@ export default function EnergyAllotment() {
     useEffect(() => {
         const fetchWindmills = async () => {
             try {
-                const response = await api.get("/windmills/active-posted/");
+                const response = await api.get("/windmills/active-posted");
                 if (Array.isArray(response.data)) {
                     const numbers = Array.from(new Set(response.data.map((item: any) => String(item.windmill_number || '').trim()))).filter(Boolean);
                     if (numbers.length > 0) {
@@ -574,7 +574,7 @@ export default function EnergyAllotment() {
                 console.log("🔵 Fetching customers for energy allotment...");
 
                 // Use the new endpoint that includes customer IDs
-                const response = await api.get("/customers/for-energy-allotment/");
+                const response = await api.get("/customers/for-energy-allotment");
                 console.log("🔵 Raw API response:", response.data);
                 console.log("🔵 Response type:", typeof response.data, " | Is Array:", Array.isArray(response.data));
 

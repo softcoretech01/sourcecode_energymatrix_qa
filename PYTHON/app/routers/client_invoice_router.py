@@ -94,7 +94,7 @@ async def generate_invoice(data: dict, user: dict = Depends(get_current_user)):
 # =====================================================
 # 🔵 LIST client invoices (with optional filters)
 # =====================================================
-@router.get("/")
+@router.get("")
 async def get_invoice_list(
     customer_id: Optional[int] = Query(None),
     year: Optional[int] = Query(None),

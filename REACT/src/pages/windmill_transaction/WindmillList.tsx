@@ -52,21 +52,21 @@ export default function WindmillList() {
     const [appliedWm, setAppliedWm] = useState("")
     const [data, setData] = useState<any[]>([]);
     const [windmills, setWindmills] = useState<any[]>([]);
-    
+
     useEffect(() => {
-    fetchGeneration();
-    fetchWindmills();
-}, []);
+        fetchGeneration();
+        fetchWindmills();
+    }, []);
 
-   const handleSearch = () => {
-  setAppliedYear(selectedYear);
-  setAppliedMonth(selectedMonth);
-  setAppliedFromDate(fromDate);
-  setAppliedToDate(toDate);
-  setAppliedWm(selectedWm);
+    const handleSearch = () => {
+        setAppliedYear(selectedYear);
+        setAppliedMonth(selectedMonth);
+        setAppliedFromDate(fromDate);
+        setAppliedToDate(toDate);
+        setAppliedWm(selectedWm);
 
-  fetchGeneration();
-};
+        fetchGeneration();
+    };
     const handleCancel = () => {
         setSelectedYear(currentYear.toString());
         setSelectedMonth((new Date().getMonth() + 1).toString());
@@ -82,92 +82,92 @@ export default function WindmillList() {
     };
 
     const formatDateForAPI = (date?: Date) => {
-  if (!date) return undefined;
-  return date.toISOString().split("T")[0];
-};
+        if (!date) return undefined;
+        return date.toISOString().split("T")[0];
+    };
 
 
-useEffect(() => {
-  const token = localStorage.getItem("access_token");
-  if (!token) {
-    navigate("/login");
-    return;
-  }
+    useEffect(() => {
+        const token = localStorage.getItem("access_token");
+        if (!token) {
+            navigate("/login");
+            return;
+        }
 
-  fetchGeneration();
-  fetchWindmills();
-}, [navigate]);
-
-
-const handleDelete = async (id) => {
-  try {
-    await api.delete(`/daily-generation/delete/${id}`);
-    fetchGeneration();
-  } catch (error) {
-    console.error("Delete failed:", error);
-  }
-};
+        fetchGeneration();
+        fetchWindmills();
+    }, [navigate]);
 
 
-const fetchGeneration = async () => {
-  try {
-    const response = await api.get("/daily-generation", {
-      params: {
-        from_date: formatDateForAPI(fromDate),
-        to_date: formatDateForAPI(toDate),
-      },
-    });
+    const handleDelete = async (id) => {
+        try {
+            await api.delete(`/daily-generation/delete/${id}`);
+            fetchGeneration();
+        } catch (error) {
+            console.error("Delete failed:", error);
+        }
+    };
 
-    setData(response.data);
-  } catch (error) {
-    console.error("Error fetching data:", error);
-    // Optional: handle 401
-    if (axios.isAxiosError(error) && error.response?.status === 401) {
-      alert("Session expired. Please login again.");
-      navigate("/login");
-    }
-  }
-};
 
-const fetchWindmills = async () => {
-  try {
-    const response = await api.get("/daily-generation/windmill-list");
-    setWindmills(response.data);
-  } catch (error) {
-    console.error("Error fetching windmills:", error);
-    if (axios.isAxiosError(error) && error.response?.status === 401) {
-      alert("Session expired. Please login again.");
-      navigate("/login");
-    }
-  }
-};
+    const fetchGeneration = async () => {
+        try {
+            const response = await api.get("/daily-generation/", {
+                params: {
+                    from_date: formatDateForAPI(fromDate),
+                    to_date: formatDateForAPI(toDate),
+                },
+            });
 
-const handleExportExcel = () => {
-  if (filteredData.length === 0) {
-    alert("No data to export");
-    return;
-  }
+            setData(response.data);
+        } catch (error) {
+            console.error("Error fetching data:", error);
+            // Optional: handle 401
+            if (axios.isAxiosError(error) && error.response?.status === 401) {
+                alert("Session expired. Please login again.");
+                navigate("/login");
+            }
+        }
+    };
 
-  const header = ["Date", "Wind Mill Number", "Units", "Status"];
-  const rows = filteredData.map((row) => [
-    row.transaction_date,
-    row.windmill_number,
-    row.units,
-    row.is_submitted === 1 ? "Posted" : "Saved",
-  ]);
+    const fetchWindmills = async () => {
+        try {
+            const response = await api.get("/daily-generation/windmill-list");
+            setWindmills(response.data);
+        } catch (error) {
+            console.error("Error fetching windmills:", error);
+            if (axios.isAxiosError(error) && error.response?.status === 401) {
+                alert("Session expired. Please login again.");
+                navigate("/login");
+            }
+        }
+    };
 
-  const csvContent =
-    "data:text/csv;charset=utf-8," +
-    [header, ...rows].map((e) => e.join(",")).join("\n");
+    const handleExportExcel = () => {
+        if (filteredData.length === 0) {
+            alert("No data to export");
+            return;
+        }
 
-  const encodedUri = encodeURI(csvContent);
-  const link = document.createElement("a");
-  link.setAttribute("href", encodedUri);
-  link.setAttribute("download", `windmill_data_${new Date().toISOString()}.csv`);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-};
+        const header = ["Date", "Wind Mill Number", "Units", "Status"];
+        const rows = filteredData.map((row) => [
+            row.transaction_date,
+            row.windmill_number,
+            row.units,
+            row.is_submitted === 1 ? "Posted" : "Saved",
+        ]);
+
+        const csvContent =
+            "data:text/csv;charset=utf-8," +
+            [header, ...rows].map((e) => e.join(",")).join("\n");
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `windmill_data_${new Date().toISOString()}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
 
     const filteredData = data.filter(row => {
         const rowDate = new Date(row.transaction_date);
@@ -181,7 +181,7 @@ const handleExportExcel = () => {
             dateMatch = matchesYear && matchesMonth;
         }
 
-        const matchesWm = appliedWm === "" || appliedWm === "all" ||row.windmill_number.toLowerCase() === appliedWm.toLowerCase();
+        const matchesWm = appliedWm === "" || appliedWm === "all" || row.windmill_number.toLowerCase() === appliedWm.toLowerCase();
 
         const matchesGlobal = searchKeyword === "" ||
             Object.values(row).some(val => String(val).toLowerCase().includes(searchKeyword.toLowerCase()));
@@ -224,16 +224,16 @@ const handleExportExcel = () => {
                                     <SelectValue placeholder="Select Windmill" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    
-    <SelectItem value="all">All Windmills</SelectItem>
 
-    {windmills.map((wm) => (
-        <SelectItem key={wm.id} value={wm.windmill_number}>
-            {wm.windmill_number}
-        </SelectItem>
-    ))}
-</SelectContent>
-                              
+                                    <SelectItem value="all">All Windmills</SelectItem>
+
+                                    {windmills.map((wm) => (
+                                        <SelectItem key={wm.id} value={wm.windmill_number}>
+                                            {wm.windmill_number}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+
                             </Select>
 
                             {/* Year Selection */}
@@ -316,13 +316,13 @@ const handleExportExcel = () => {
                             <Button size="sm" className="h-9 text-sm bg-emerald-600 hover:bg-emerald-700 text-white px-3" onClick={() => navigate("/windmill/add")}>
                                 + New
                             </Button>
-                           <Button
-  size="sm"
-  className="h-9 text-sm bg-[#DAA520] hover:bg-[#B8860B] text-white px-3"
-  onClick={handleExportExcel}
->
-  Export Excel
-</Button>
+                            <Button
+                                size="sm"
+                                className="h-9 text-sm bg-[#DAA520] hover:bg-[#B8860B] text-white px-3"
+                                onClick={handleExportExcel}
+                            >
+                                Export Excel
+                            </Button>
                             <Button size="sm" className="h-9 text-sm bg-red-600 hover:bg-red-700 text-white px-3" onClick={handleCancel}>
                                 Cancel
                             </Button>
@@ -405,8 +405,8 @@ const handleExportExcel = () => {
                                                             )}
                                                             onClick={() => navigate(`/windmill/edit/${row.id}`)}
                                                         >
-  <Edit className="h-4 w-4" />
-</Button>
+                                                            <Edit className="h-4 w-4" />
+                                                        </Button>
                                                     </div>
                                                 </TableCell>
                                             </TableRow>

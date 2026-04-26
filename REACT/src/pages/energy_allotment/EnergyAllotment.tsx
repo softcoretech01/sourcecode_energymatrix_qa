@@ -421,16 +421,11 @@ export default function EnergyAllotment() {
     useEffect(() => {
         const fetchConsumption = async () => {
             try {
-                // Calculate previous month for "Requested" values
-                let prevMonth = parseInt(selectedMonth) - 1;
-                let prevYear = parseInt(selectedYear);
-                if (prevMonth === 0) {
-                    prevMonth = 12;
-                    prevYear -= 1;
-                }
+                const currentMonth = parseInt(selectedMonth);
+                const currentYear = parseInt(selectedYear);
 
-                console.log(`🔍 Fetching consumption requests for PREVIOUS month ${prevYear}-${prevMonth}...`);
-                const response = await api.get(`/consumption-request/list?year=${prevYear}&month=${prevMonth}`);
+                console.log(`🔍 Fetching consumption requests for month ${currentYear}-${currentMonth}...`);
+                const response = await api.get(`/consumption-request/list?year=${currentYear}&month=${currentMonth}`);
 
                 if (Array.isArray(response.data)) {
                     setConsumptionRequests(response.data);

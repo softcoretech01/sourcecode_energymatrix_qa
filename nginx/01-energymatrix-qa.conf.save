@@ -1,33 +1,33 @@
 server {
     listen 80;
-    server_name uat.softcoretech.in;
+    server_name qa.softcoretech.in;
     return 301 https://$host$request_uri;
 }
 
 server {
     listen 443 ssl;
-    server_name uat.softcoretech.in;
+    server_name qa.softcoretech.in;
 
-    ssl_certificate /etc/letsencrypt/live/uat.softcoretech.in/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/uat.softcoretech.in/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/qa.softcoretech.in/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/qa.softcoretech.in/privkey.pem;
 
     
 
     # 2. FRONTEND REACT
-    location /energymatrix/uat/ {
-        alias /usr/share/nginx/html/energymatrix/uat/;
+    location /energymatrix/qa/ {
+        alias /usr/share/nginx/html/energymatrix/qa/;
         index index.html;
-        # Change the fallback to @uat_fallback
-        try_files $uri $uri/ @uat_fallback;
+        # Change the fallback to @qa_fallback
+        try_files $uri $uri/ @qa_fallback;
     }
 
     # New block to handle the React routing fallback correctly with alias
-    location @uat_fallback {
-        rewrite ^ /energymatrix/uat/index.html break;
+    location @qa_fallback {
+        rewrite ^ /energymatrix/qa/index.html break;
     }
 
     # 3. Handle the URL without the trailing slash
-    location = /energymatrix/uat {
-        return 301 /energymatrix/uat/;
+    location = /energymatrix/qa {
+        return 301 /energymatrix/qa/;
     }
 }

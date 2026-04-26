@@ -1,45 +1,17 @@
 services:
-  backend:
-    build: ./PYTHON
-    container_name: backend
+  qa_backend:
+    build:
+      context: ./PYTHON
+      dockerfile: Dockerfile
+    container_name: qa_backend
     restart: always
     env_file:
       - ./PYTHON/.env
-    # Allows backend to see the standalone MySQL container
     extra_hosts:
       - "mysql_standalone:host-gateway"
     networks:
-      - energy_net
-    ports:
-      - "8000:8000"
-
-  nginx:
-    image: nginx:alpine
-    container_name: nginx
-    restart: always
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./REACT/dist:/usr/share/nginx/html/energymatrix/uat
-      - /var/www/energymatrix_qa/REACT/dist:/usr/share/nginx/html/energymatrix/qa
-      - /var/www/resolvex/static:/usr/share/nginx/html/resolvex/static
-      - /var/www/energymatrix_qa/REACT/dist:/usr/share/nginx/html/energymatrix/qa:ro
-      - /var/www/rentinsight_qa/React/dist:/usr/share/nginx/html/rentinsight_uat
-      - /var/www/HRMS_OTC/HRMS-OTCalc-120N0v-9 pm/HRMS-OTCalc-120N0v-9 pm/HRMS-OTCalc:/usr/share/nginx/html/hrms
-      - /var/www/soil_tracker/frontend/dist:/usr/share/nginx/html/soil:ro
-      - /var/www/hrms_prototype:/usr/share/nginx/html/hrms_prototype:ro
-      - ./nginx:/etc/nginx/conf.d:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-      - /var/www/html:/var/www/html
-    depends_on:
-      - backend
-    networks:
-      - energy_net
       - web_network
 
 networks:
-  energy_net:
-    driver: bridge
   web_network:
     external: true

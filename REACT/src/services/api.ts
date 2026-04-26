@@ -3,9 +3,9 @@ import axios, { AxiosError } from "axios";
 /**
  * ✅ FIXED BASE URL (NO ENV ISSUES)
  * Your app is hosted under:
- * https://softcoretech.in/energymatrix/uat
+ * https://softcoretech.in/energymatrix/qa
  */
-export const BACKEND_URL = "/energymatrix/uat";
+export const BACKEND_URL = "/energymatrix/qa";
 export const BACKEND_API_URL = `${BACKEND_URL}/api`;
 export const BACKEND_UPLOAD_URL = `${BACKEND_URL}/uploads`;
 
@@ -41,7 +41,7 @@ api.interceptors.response.use(
       localStorage.removeItem("access_token");
       localStorage.removeItem("user");
 
-      window.location.href = "/energymatrix/uat/login";
+      window.location.href = "/energymatrix/qa/login";
     }
 
     return Promise.reject(error);

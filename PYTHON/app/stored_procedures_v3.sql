@@ -1,4 +1,4 @@
--- Stored Procedures for Energy Matrix UAT - Part 3
+-- Stored Procedures for Energy Matrix qa - Part 3
 -- Target: MySQL Database
 
 DELIMITER //

@@ -851,8 +851,6 @@ async def save_eb_statement_solar_details(
 
         for charge in payload.charges:
             charge_id = None
-            energy_type_value = "solar"
-            valid_charge_types = ("variable", "solar")
             charge_name_norm = "" if not charge.name else " ".join(str(charge.name).strip().lower().split())
             charge_code_norm = "" if not charge.code else str(charge.code).strip().lower()
 
@@ -880,7 +878,7 @@ async def save_eb_statement_solar_details(
                 except Exception as ce:
                     print(f"Warning: Could not map charge description '{charge.name}' exactly: {ce}")
 
-            # 2) Normalized exact match ignoring spaces/punctuation (no energy_type filter)
+            # 2) Normalized exact match ignoring spaces/punctqaion (no energy_type filter)
             if not charge_id and normalized_charge_name:
                 try:
                     cursor.execute(
@@ -923,11 +921,9 @@ async def save_eb_statement_solar_details(
                         """
                         SELECT id, charge_description FROM masters.master_consumption_chargers
                         WHERE TRIM(LOWER(charge_code)) = %s
-                          AND TRIM(LOWER(energy_type)) = %s
-                          AND TRIM(LOWER(`type`)) IN (%s, %s)
                         LIMIT 1
                         """,
-                        (charge_code_norm, energy_type_value, valid_charge_types[0], valid_charge_types[1]),
+                        (charge_code_norm,),
                     )
                     res = cursor.fetchone()
                     if res:
@@ -946,11 +942,9 @@ async def save_eb_statement_solar_details(
                             """
                             SELECT id, charge_description FROM masters.master_consumption_chargers
                             WHERE TRIM(LOWER(charge_description)) LIKE %s
-                              AND TRIM(LOWER(energy_type)) = %s
-                              AND TRIM(LOWER(`type`)) IN (%s, %s)
                             ORDER BY CHAR_LENGTH(charge_description) DESC, id LIMIT 1
                             """,
-                            (f"%{token}%", energy_type_value, valid_charge_types[0], valid_charge_types[1]),
+                            (f"%{token}%",),
                         )
                         res = cursor.fetchone()
                         if res:
@@ -963,8 +957,6 @@ async def save_eb_statement_solar_details(
 
             if charge_id is None:
                 print(f"Warning: charge_id not mapped for '{charge.name}' (code={charge.code})")
-            if charge_id is None:
-                print(f"Warning: charge_id not mapped for '{charge.name}' (code={charge.code})")
 
             if not charge_id and charge_code_norm:
                 try:
@@ -972,11 +964,9 @@ async def save_eb_statement_solar_details(
                         """
                         SELECT id FROM masters.master_consumption_chargers
                         WHERE TRIM(LOWER(charge_code)) = %s
-                        AND TRIM(LOWER(energy_type)) = %s
-                        AND TRIM(LOWER(`type`)) IN (%s, %s)
                         LIMIT 1
                         """,
-                        (charge_code_norm, energy_type_value, valid_charge_types[0], valid_charge_types[1]),
+                        (charge_code_norm,),
                     )
                     res = cursor.fetchone()
                     if res:
@@ -990,11 +980,9 @@ async def save_eb_statement_solar_details(
                         """
                         SELECT id, charge_description FROM masters.master_consumption_chargers
                         WHERE (TRIM(LOWER(charge_description)) LIKE %s OR TRIM(LOWER(charge_code)) LIKE %s)
-                        AND TRIM(LOWER(energy_type)) = %s
-                        AND TRIM(LOWER(`type`)) IN (%s, %s)
                         LIMIT 1
                         """,
-                        (f"%{charge_name_norm}%", f"%{charge_name_norm}%", energy_type_value, valid_charge_types[0], valid_charge_types[1]),
+                        (f"%{charge_name_norm}%", f"%{charge_name_norm}%"),
                     )
                     res = cursor.fetchone()
                     if res:
@@ -1011,11 +999,9 @@ async def save_eb_statement_solar_details(
                             """
                             SELECT id, charge_description FROM masters.master_consumption_chargers
                             WHERE TRIM(LOWER(charge_description)) LIKE %s
-                            AND TRIM(LOWER(energy_type)) = %s
-                            AND TRIM(LOWER(`type`)) IN (%s, %s)
                             ORDER BY id LIMIT 1
                             """,
-                            (f"%{token}%", energy_type_value, valid_charge_types[0], valid_charge_types[1]),
+                            (f"%{token}%",),
                         )
                         res = cursor.fetchone()
                         if res:

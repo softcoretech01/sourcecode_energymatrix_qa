@@ -119,7 +119,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter
-        basename="/energymatrix/uat"
+        basename="/energymatrix/qa"
         future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
       >
         <SessionManager>

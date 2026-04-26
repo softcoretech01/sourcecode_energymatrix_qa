@@ -39,15 +39,16 @@ type ChargeRow = {
     windmill: string;
     customer: string;
     seNumber: string;
-    mrc: number; omc: number; trc: number; oc1: number; kp: number; ec: number; shc: number; other: number; dc: number;
+    mrc: number; omc: number; trc: number; oc1: number; kp: number; ec: number; shc: number; other: number; dc: number; wc: number; sgt: number;
 };
 
 type SolarRow = {
     chargeKey: string;
+    chargeCode?: string;
     chargeLabel: string;
     customer: string;
     seNumber: string;
-    isChecked: boolean;
+    isChecked?: boolean;
     value: number;
 };
 
@@ -96,7 +97,9 @@ export default function EnergyAllotment() {
         ec: "E.C",
         shc: "S.H.C",
         other: "O.C",
-        dc: "D.C"
+        dc: "D.C",
+        wc: "W.C",
+        sgt: "S.G.T"
     });
 
     const handleFileUpload = async (wm: string, file: File | null) => {
@@ -292,12 +295,12 @@ export default function EnergyAllotment() {
                 }
 
                 setChargeAllocationRows(windmillNumbers.map(wm => {
-                    const saved = savedWindmills.find((s: any) => s.windmill === wm);
+                    const saved = savedWindmills.find((s: any) => String(s.windmill || '').trim() === String(wm).trim());
                     if (saved) {
                         return {
                             windmill: wm,
-                            customer: saved.customer || "",
-                            seNumber: saved.seNumber || "",
+                            customer: String(saved.customer || "").trim(),
+                            seNumber: String(saved.seNumber || "").trim(),
                             mrc: saved.mrc || 0,
                             omc: saved.omc || 0,
                             trc: saved.trc || 0,
@@ -307,6 +310,8 @@ export default function EnergyAllotment() {
                             shc: saved.shc || 0,
                             other: saved.other || 0,
                             dc: saved.dc || 0,
+                            wc: saved.wc || 0,
+                            sgt: saved.sgt || 0,
                         };
                     } else {
                         const wmCharges = chargesMap[wm] || {};
@@ -323,6 +328,8 @@ export default function EnergyAllotment() {
                             shc: wmCharges["C007"] || 0,
                             other: wmCharges["C008"] || 0,
                             dc: wmCharges["C010"] || 0,
+                            wc: wmCharges["C009"] || 0,
+                            sgt: wmCharges["C011"] || 0,
                         };
                     }
                 }));
@@ -442,9 +449,11 @@ export default function EnergyAllotment() {
         const loadAllSolarData = async () => {
             // 1. Fetch labels first
             let currentLabels = { ...chargeLabels };
+            let fullChargeList: any[] = [];
             try {
                 const labelRes = await api.get("/consumption/list");
                 if (Array.isArray(labelRes.data)) {
+                    fullChargeList = labelRes.data;
                     labelRes.data.forEach((item: any) => {
                         if (item.charge_code === 'C001') currentLabels.mrc = item.charge_name;
                         if (item.charge_code === 'C002') currentLabels.omc = item.charge_name;
@@ -455,6 +464,8 @@ export default function EnergyAllotment() {
                         if (item.charge_code === 'C007') currentLabels.shc = item.charge_name;
                         if (item.charge_code === 'C008') currentLabels.other = item.charge_name;
                         if (item.charge_code === 'C010') currentLabels.dc = item.charge_name;
+                        if (item.charge_code === 'C009') currentLabels.wc = item.charge_name;
+                        if (item.charge_code === 'C011') currentLabels.sgt = item.charge_name;
                     });
                     setChargeLabels(currentLabels);
                 }
@@ -490,73 +501,89 @@ export default function EnergyAllotment() {
                 }
 
                 if (chargeRes.data && chargeRes.data.status === "success") {
-                    const dataMap = chargeRes.data.data;
-                    const solarWm = solarWindmills[0].solar_number;
-                    console.log(`🔍 Solar Sync: Matching windmill "${solarWm}"`);
-                    const wmCharges = dataMap[solarWm] || {};
-                    console.log(`🔍 Solar Sync: Found charges:`, wmCharges);
+                    const dataMap = chargeRes.data.data || {};
+                    const solarWmRaw = solarWindmills[0]?.solar_number || "";
+                    const solarWm = String(solarWmRaw).trim();
 
-                    const initialRows = createInitialSolarRows(currentLabels).map(row => {
-                        let code = "";
-                        if (row.chargeKey === 'mrc') code = 'C001';
-                        if (row.chargeKey === 'omc') code = 'C002';
-                        if (row.chargeKey === 'trc') code = 'C003';
-                        if (row.chargeKey === 'oc1') code = 'C004';
-                        if (row.chargeKey === 'kp') code = 'C005';
-                        if (row.chargeKey === 'ec') code = 'C006';
-                        if (row.chargeKey === 'shc') code = 'C007';
-                        if (row.chargeKey === 'other') code = 'C008';
-                        if (row.chargeKey === 'dc') code = 'C010';
+                    console.log(`🔍 Solar Sync: Looking for windmill "${solarWm}" (raw: "${solarWmRaw}")`);
+                    console.log(`🔍 Solar Sync: Available keys in dataMap:`, Object.keys(dataMap));
 
-                        const savedRow = savedSolar.find((s: any) => s.charge_code === code);
-                        if (savedRow) {
-                            return {
-                                ...row,
-                                customer: savedRow.customer || "",
-                                seNumber: savedRow.seNumber || "",
-                                value: savedRow.value || 0,
-                                isChecked: true
-                            };
-                        }
-
-                        const val = wmCharges[code] || 0;
-                        return {
-                            ...row,
-                            value: val,
-                            isChecked: val > 0
-                        };
+                    // Create a trimmed version of dataMap for robust matching
+                    const trimmedDataMap: Record<string, any> = {};
+                    Object.keys(dataMap).forEach(k => {
+                        trimmedDataMap[String(k).trim()] = dataMap[k];
                     });
-                    setSolarAllocationRows(initialRows);
-                } else {
-                    const fallbackRows = createInitialSolarRows(currentLabels).map(row => {
-                        let code = "";
-                        if (row.chargeKey === 'mrc') code = 'C001';
-                        if (row.chargeKey === 'omc') code = 'C002';
-                        if (row.chargeKey === 'trc') code = 'C003';
-                        if (row.chargeKey === 'oc1') code = 'C004';
-                        if (row.chargeKey === 'kp') code = 'C005';
-                        if (row.chargeKey === 'ec') code = 'C006';
-                        if (row.chargeKey === 'shc') code = 'C007';
-                        if (row.chargeKey === 'other') code = 'C008';
-                        if (row.chargeKey === 'dc') code = 'C010';
+
+                    const wmCharges = trimmedDataMap[solarWm] || {};
+                    console.log(`🔍 Solar Sync: Found charges for ${solarWm}:`, wmCharges);
+
+                    let dynamicRows: SolarRow[] = [];
+                    fullChargeList.forEach(charge => {
+                        const code = charge.charge_code;
+                        const label = charge.charge_name;
+
+                        let chargeKey = code.toLowerCase();
+                        if (code === 'C001') chargeKey = 'mrc';
+                        else if (code === 'C002') chargeKey = 'omc';
+                        else if (code === 'C003') chargeKey = 'trc';
+                        else if (code === 'C004') chargeKey = 'oc1';
+                        else if (code === 'C005') chargeKey = 'kp';
+                        else if (code === 'C006') chargeKey = 'ec';
+                        else if (code === 'C007') chargeKey = 'shc';
+                        else if (code === 'C008') chargeKey = 'other';
+                        else if (code === 'C010') chargeKey = 'dc';
 
                         const savedRow = savedSolar.find((s: any) => s.charge_code === code);
-                        if (savedRow) {
-                            return {
-                                ...row,
-                                customer: savedRow.customer || "",
-                                seNumber: savedRow.seNumber || "",
+                        const val = wmCharges[code] || 0;
+
+                        if (val > 0 || (savedRow && savedRow.value > 0)) {
+                            dynamicRows.push({
+                                chargeKey: chargeKey,
+                                chargeCode: code,
+                                chargeLabel: label,
+                                customer: savedRow ? String(savedRow.customer || "").trim() : "",
+                                seNumber: savedRow ? String(savedRow.seNumber || "").trim() : "",
+                                value: savedRow?.value || val,
+                                isChecked: true
+                            });
+                        }
+                    });
+                    setSolarAllocationRows(dynamicRows);
+                } else {
+                    let fallbackRows: SolarRow[] = [];
+                    fullChargeList.forEach(charge => {
+                        const code = charge.charge_code;
+                        const label = charge.charge_name;
+
+                        let chargeKey = code.toLowerCase();
+                        if (code === 'C001') chargeKey = 'mrc';
+                        else if (code === 'C002') chargeKey = 'omc';
+                        else if (code === 'C003') chargeKey = 'trc';
+                        else if (code === 'C004') chargeKey = 'oc1';
+                        else if (code === 'C005') chargeKey = 'kp';
+                        else if (code === 'C006') chargeKey = 'ec';
+                        else if (code === 'C007') chargeKey = 'shc';
+                        else if (code === 'C008') chargeKey = 'other';
+                        else if (code === 'C010') chargeKey = 'dc';
+
+                        const savedRow = savedSolar.find((s: any) => s.charge_code === code);
+                        if (savedRow && savedRow.value > 0) {
+                            fallbackRows.push({
+                                chargeKey: chargeKey,
+                                chargeCode: code,
+                                chargeLabel: label,
+                                customer: savedRow ? String(savedRow.customer || "").trim() : "",
+                                seNumber: savedRow ? String(savedRow.seNumber || "").trim() : "",
                                 value: savedRow.value || 0,
                                 isChecked: true
-                            };
+                            });
                         }
-                        return row;
                     });
                     setSolarAllocationRows(fallbackRows);
                 }
             } catch (error) {
                 console.error("Error fetching solar charges:", error);
-                setSolarAllocationRows(createInitialSolarRows(currentLabels));
+                setSolarAllocationRows([]);
             }
         };
 
@@ -616,13 +643,13 @@ export default function EnergyAllotment() {
                     console.log("✅ Formatted data ready:", formattedData);
 
                     // Populate dynamic dropdowns for Charge Allocation
-                    const uniqueCustomers = Array.from(new Set(response.data.map((item: any) => item.customer_name || item.customer))).filter(Boolean) as string[];
+                    const uniqueCustomers = Array.from(new Set(response.data.map((item: any) => String(item.customer_name || item.customer || '').trim()))).filter(Boolean) as string[];
                     setCustomerList(uniqueCustomers);
 
                     const seMap: Record<string, string[]> = {};
                     response.data.forEach((item: any) => {
-                        const name = item.customer_name || item.customer;
-                        const se = item.service_number || item.sc_number;
+                        const name = String(item.customer_name || item.customer || '').trim();
+                        const se = String(item.service_number || item.sc_number || '').trim();
                         if (name && se) {
                             if (!seMap[name]) seMap[name] = [];
                             if (!seMap[name].includes(se)) seMap[name].push(se);
@@ -983,7 +1010,7 @@ export default function EnergyAllotment() {
             });
 
             const windmillChargesToSave = chargeAllocationRows.filter(r => r.customer && r.seNumber);
-            const solarRowsToSave = solarAllocationRows.filter(r => r.customer && r.seNumber && r.isChecked);
+            const solarRowsToSave = solarAllocationRows.filter(r => r.customer && r.seNumber && r.value > 0);
 
             // Block save only for non-list tabs when nothing to save
             if (activeTab !== "list" && rowsWithData.length === 0 && windmillChargesToSave.length === 0 && solarRowsToSave.length === 0) {
@@ -1135,10 +1162,13 @@ export default function EnergyAllotment() {
                 if (windmillChargesToSave.length > 0) {
                     console.log("💾 Saving Windmill Charge Allocation rows...");
                     for (const row of windmillChargesToSave) {
-                        const match = fullCustomerData.find(c =>
-                            (c.customer_name === row.customer || c.customer === row.customer) &&
-                            (c.service_number === row.seNumber || c.sc_number === row.seNumber)
-                        );
+                        const match = fullCustomerData.find(c => {
+                            const dbCust = String(c.customer_name || c.customer || "").trim();
+                            const dbSE = String(c.service_number || c.sc_number || "").trim();
+                            const rowCust = String(row.customer || "").trim();
+                            const rowSE = String(row.seNumber || "").trim();
+                            return dbCust === rowCust && dbSE === rowSE;
+                        });
 
                         const wmObj = windmillsDetailed.find(w => w.windmill_number === row.windmill);
 
@@ -1158,7 +1188,9 @@ export default function EnergyAllotment() {
                                     C006: row.ec,
                                     C007: row.shc,
                                     C008: row.other,
-                                    C010: row.dc
+                                    C010: row.dc,
+                                    C009: row.wc,
+                                    C011: row.sgt
                                 }
                             };
                             try {
@@ -1182,21 +1214,28 @@ export default function EnergyAllotment() {
                     const solarWm = solarWindmills[0];
 
                     const items = solarRowsToSave.map(row => {
-                        const match = fullCustomerData.find(c =>
-                            (c.customer_name === row.customer || c.customer === row.customer) &&
-                            (c.service_number === row.seNumber || c.sc_number === row.seNumber)
-                        );
+                        const match = fullCustomerData.find(c => {
+                            const dbCust = String(c.customer_name || c.customer || "").trim();
+                            const dbSE = String(c.service_number || c.sc_number || "").trim();
+                            const rowCust = String(row.customer || "").trim();
+                            const rowSE = String(row.seNumber || "").trim();
+                            return dbCust === rowCust && dbSE === rowSE;
+                        });
 
-                        let code = "";
-                        if (row.chargeKey === 'mrc') code = 'C001';
-                        else if (row.chargeKey === 'omc') code = 'C002';
-                        else if (row.chargeKey === 'trc') code = 'C003';
-                        else if (row.chargeKey === 'oc1') code = 'C004';
-                        else if (row.chargeKey === 'kp') code = 'C005';
-                        else if (row.chargeKey === 'ec') code = 'C006';
-                        else if (row.chargeKey === 'shc') code = 'C007';
-                        else if (row.chargeKey === 'other') code = 'C008';
-                        else if (row.chargeKey === 'dc') code = 'C010';
+                        let code = row.chargeCode || "";
+                        if (!code) {
+                            if (row.chargeKey === 'mrc') code = 'C001';
+                            else if (row.chargeKey === 'omc') code = 'C002';
+                            else if (row.chargeKey === 'trc') code = 'C003';
+                            else if (row.chargeKey === 'oc1') code = 'C004';
+                            else if (row.chargeKey === 'kp') code = 'C005';
+                            else if (row.chargeKey === 'ec') code = 'C006';
+                            else if (row.chargeKey === 'shc') code = 'C007';
+                            else if (row.chargeKey === 'other') code = 'C008';
+                            else if (row.chargeKey === 'dc') code = 'C010';
+                            else if (row.chargeKey === 'wc') code = 'C009';
+                            else if (row.chargeKey === 'sgt') code = 'C011';
+                        }
 
                         return {
                             charge_code: code,
@@ -1945,12 +1984,14 @@ export default function EnergyAllotment() {
                                                         <TableHead className="py-2 h-10 font-semibold text-white text-right whitespace-nowrap text-xs px-3">{chargeLabels.shc}</TableHead>
                                                         <TableHead className="py-2 h-10 font-semibold text-white text-right whitespace-nowrap text-xs px-3">{chargeLabels.other}</TableHead>
                                                         <TableHead className="py-2 h-10 font-semibold text-white text-right whitespace-nowrap text-xs px-3">{chargeLabels.dc}</TableHead>
+                                                        <TableHead className="py-2 h-10 font-semibold text-white text-right whitespace-nowrap text-xs px-3">{chargeLabels.wc}</TableHead>
+                                                        <TableHead className="py-2 h-10 font-semibold text-white text-right whitespace-nowrap text-xs px-3">{chargeLabels.sgt}</TableHead>
                                                     </TableRow>
                                                 </TableHeader>
                                                 <TableBody>
                                                     {isFetchingCharges ? (
                                                         <TableRow>
-                                                            <TableCell colSpan={12} className="h-24 text-center text-slate-500 italic text-sm">
+                                                            <TableCell colSpan={14} className="h-24 text-center text-slate-500 italic text-sm">
                                                                 <div className="flex flex-col items-center justify-center gap-2">
                                                                     <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
                                                                     Fetching previous month charges from EB statements...
@@ -2004,6 +2045,8 @@ export default function EnergyAllotment() {
                                                                 <TableCell className="p-1.5 border-r"><Input readOnly={!isEditing} className="h-8 text-right text-[11px] border-slate-200 shadow-none focus-visible:ring-1 bg-white text-black font-normal rounded-sm px-2" value={row.shc} onChange={(e) => handleChargeFieldChange(index, 'shc', e.target.value)} /></TableCell>
                                                                 <TableCell className="p-1.5 border-r"><Input readOnly={!isEditing} className="h-8 text-right text-[11px] border-slate-200 shadow-none focus-visible:ring-1 bg-white text-black font-normal rounded-sm px-2" value={row.other} onChange={(e) => handleChargeFieldChange(index, 'other', e.target.value)} /></TableCell>
                                                                 <TableCell className="p-1.5 border-r"><Input readOnly={!isEditing} className="h-8 text-right text-[11px] border-slate-200 shadow-none focus-visible:ring-1 bg-white text-black font-normal rounded-sm px-2" value={row.dc} onChange={(e) => handleChargeFieldChange(index, 'dc', e.target.value)} /></TableCell>
+                                                                <TableCell className="p-1.5 border-r"><Input readOnly={!isEditing} className="h-8 text-right text-[11px] border-slate-200 shadow-none focus-visible:ring-1 bg-white text-black font-normal rounded-sm px-2" value={row.wc} onChange={(e) => handleChargeFieldChange(index, 'wc', e.target.value)} /></TableCell>
+                                                                <TableCell className="p-1.5 border-r"><Input readOnly={!isEditing} className="h-8 text-right text-[11px] border-slate-200 shadow-none focus-visible:ring-1 bg-white text-black font-normal rounded-sm px-2" value={row.sgt} onChange={(e) => handleChargeFieldChange(index, 'sgt', e.target.value)} /></TableCell>
                                                             </TableRow>
                                                         ))
                                                     )}
@@ -2037,13 +2080,6 @@ export default function EnergyAllotment() {
                                                                 <TableCell className="py-2 pl-4 pr-3 text-sm text-slate-700 font-medium w-[240px] border-r">
                                                                     <div className="flex items-center justify-between">
                                                                         <span>{row.chargeLabel}</span>
-                                                                        <input
-                                                                            type="checkbox"
-                                                                            className="accent-indigo-700 h-4 w-4 rounded border-slate-300"
-                                                                            checked={row.isChecked}
-                                                                            onChange={(e) => handleSolarCheckChange(index, e.target.checked)}
-                                                                            disabled={false}
-                                                                        />
                                                                     </div>
                                                                 </TableCell>
                                                                 <TableCell className="p-1.5 w-[180px] border-r">
@@ -2079,7 +2115,7 @@ export default function EnergyAllotment() {
                                                                 </TableCell>
                                                                 <TableCell className="p-1.5 pr-4">
                                                                     <Input
-                                                                        disabled={!isEditing || !row.isChecked}
+                                                                        disabled={!isEditing}
                                                                         className="h-8 text-center text-xs border-slate-200 shadow-none focus-visible:ring-1 bg-white disabled:bg-white disabled:text-black font-semibold rounded-sm px-2 text-black"
                                                                         value={row.value || ""}
                                                                         onChange={(e) => handleSolarFieldChange(index, e.target.value)}

@@ -298,9 +298,10 @@ async def export_energy_allotment(
         for row in rows:
             clean = {}
             for k, v in row.items():
-                try:
-                    clean[k] = float(v) if v is not None else 0
-                except (TypeError, ValueError):
+                from decimal import Decimal
+                if isinstance(v, Decimal):
+                    clean[k] = float(v)
+                else:
                     clean[k] = v
             result.append(clean)
 
@@ -341,7 +342,9 @@ async def export_charge_allotment(
                 MAX(CASE WHEN mcc.charge_code='C006' THEN d.charge_amount ELSE 0 END) AS `Excess Unit Charges`,
                 MAX(CASE WHEN mcc.charge_code='C007' THEN d.charge_amount ELSE 0 END) AS `SLDC Charges`,
                 MAX(CASE WHEN mcc.charge_code='C008' THEN d.charge_amount ELSE 0 END) AS `Other Charges`,
-                MAX(CASE WHEN mcc.charge_code='C010' THEN d.charge_amount ELSE 0 END) AS `Disconnection Charges`
+                MAX(CASE WHEN mcc.charge_code='C010' THEN d.charge_amount ELSE 0 END) AS `Disconnection Charges`,
+                MAX(CASE WHEN mcc.charge_code='C009' THEN d.charge_amount ELSE 0 END) AS `Wheeling Charges`,
+                MAX(CASE WHEN mcc.charge_code='C011' THEN d.charge_amount ELSE 0 END) AS `Self Generation Tax`
             FROM windmill.charge_allotment_header h
             JOIN windmill.charge_allotment_details d ON h.id = d.header_id
             JOIN masters.master_windmill mw ON h.windmill_id = mw.id
@@ -378,9 +381,10 @@ async def export_charge_allotment(
             for r in rows:
                 c = {}
                 for k, v in r.items():
-                    try:
-                        c[k] = float(v) if v is not None else 0
-                    except:
+                    from decimal import Decimal
+                    if isinstance(v, Decimal):
+                        c[k] = float(v)
+                    else:
                         c[k] = v
                 res.append(c)
             return res
@@ -424,7 +428,9 @@ async def get_all_charge_allotments_by_month(
                 MAX(CASE WHEN mcc.charge_code='C006' THEN d.charge_amount ELSE 0 END) AS `ec`,
                 MAX(CASE WHEN mcc.charge_code='C007' THEN d.charge_amount ELSE 0 END) AS `shc`,
                 MAX(CASE WHEN mcc.charge_code='C008' THEN d.charge_amount ELSE 0 END) AS `other`,
-                MAX(CASE WHEN mcc.charge_code='C010' THEN d.charge_amount ELSE 0 END) AS `dc`
+                MAX(CASE WHEN mcc.charge_code='C010' THEN d.charge_amount ELSE 0 END) AS `dc`,
+                MAX(CASE WHEN mcc.charge_code='C009' THEN d.charge_amount ELSE 0 END) AS `wc`,
+                MAX(CASE WHEN mcc.charge_code='C011' THEN d.charge_amount ELSE 0 END) AS `sgt`
             FROM windmill.charge_allotment_header h
             JOIN windmill.charge_allotment_details d ON h.id = d.header_id
             JOIN masters.master_windmill mw ON h.windmill_id = mw.id
@@ -460,9 +466,10 @@ async def get_all_charge_allotments_by_month(
             for r in rows:
                 c = {}
                 for k, v in r.items():
-                    try:
-                        c[k] = float(v) if v is not None else 0
-                    except:
+                    from decimal import Decimal
+                    if isinstance(v, Decimal):
+                        c[k] = float(v)
+                    else:
                         c[k] = v
                 res.append(c)
             return res
